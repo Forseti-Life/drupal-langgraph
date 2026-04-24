@@ -1,0 +1,39 @@
+<?php
+
+/**
+ * @file
+ * Primary module hooks for Copilot HQ.
+ */
+
+/**
+ * Implements hook_theme().
+ */
+function drupal_langgraph_theme($existing, $type, $theme, $path): array {
+  return [
+    'drupal_langgraph_roadmap' => [
+      'variables' => [
+        'title' => NULL,
+        'intro' => NULL,
+        'projects' => [],
+      ],
+      'template' => 'copilot-hq-roadmap',
+    ],
+    'drupal_langgraph_roadmap_project' => [
+      'variables' => [
+        'title' => NULL,
+        'project_id' => NULL,
+        'summary' => NULL,
+        'meta' => [],
+        'roadmap_reference' => NULL,
+        'current_state' => NULL,
+        'next_step' => NULL,
+        'queue_status' => NULL,
+        'goals' => [],
+        'nav_links' => [],
+        'pipeline_counts' => [],
+        'feature_groups' => [],
+      ],
+      'template' => 'copilot-hq-roadmap-project',
+    ],
+  ];
+}

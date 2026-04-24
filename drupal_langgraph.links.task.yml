@@ -1,0 +1,41 @@
+drupal_langgraph.langgraph_console_home_tab:
+  route_name: drupal_langgraph.langgraph_console_home
+  title: 'Home'
+  base_route: drupal_langgraph.langgraph_console_home
+  weight: 0
+
+drupal_langgraph.langgraph_console_build_tab:
+  route_name: drupal_langgraph.langgraph_console_build
+  title: 'Build'
+  base_route: drupal_langgraph.langgraph_console_home
+  weight: 1
+
+drupal_langgraph.langgraph_console_test_tab:
+  route_name: drupal_langgraph.langgraph_console_test
+  title: 'Test'
+  base_route: drupal_langgraph.langgraph_console_home
+  weight: 2
+
+drupal_langgraph.langgraph_console_run_tab:
+  route_name: drupal_langgraph.langgraph_console_run
+  title: 'Run'
+  base_route: drupal_langgraph.langgraph_console_home
+  weight: 3
+
+drupal_langgraph.langgraph_console_observe_tab:
+  route_name: drupal_langgraph.langgraph_console_observe
+  title: 'Observe'
+  base_route: drupal_langgraph.langgraph_console_home
+  weight: 4
+
+drupal_langgraph.langgraph_console_release_tab:
+  route_name: drupal_langgraph.langgraph_console_release
+  title: 'Release'
+  base_route: drupal_langgraph.langgraph_console_home
+  weight: 5
+
+drupal_langgraph.langgraph_console_admin_tab:
+  route_name: drupal_langgraph.langgraph_console_admin
+  title: 'Admin'
+  base_route: drupal_langgraph.langgraph_console_home
+  weight: 6

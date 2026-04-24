@@ -1,0 +1,125 @@
+drupal_langgraph.roadmap:
+  path: '/roadmap'
+  defaults:
+    _controller: '\Drupal\drupal_langgraph\Controller\RoadmapController::roadmap'
+    _title: 'Project Roadmaps'
+  requirements:
+    _permission: 'access content'
+  options:
+    no_cache: TRUE
+
+drupal_langgraph.roadmap_project:
+  path: '/roadmap/{project_id}'
+  defaults:
+    _controller: '\Drupal\drupal_langgraph\Controller\RoadmapController::roadmapProject'
+    _title: 'Project Roadmap'
+  requirements:
+    _permission: 'access content'
+  options:
+    no_cache: TRUE
+
+drupal_langgraph.langgraph_console_home:
+  path: '/admin/reports/drupal-langgraph/langgraph-console'
+  defaults:
+    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::home'
+    _title: 'Drupal LangGraph Console'
+  requirements:
+    _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
+
+drupal_langgraph.langgraph_home:
+  path: '/admin/reports/drupal-langgraph/langgraph'
+  defaults:
+    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::home'
+    _title: 'Drupal LangGraph'
+  requirements:
+    _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
+
+drupal_langgraph.langgraph_session:
+  path: '/admin/reports/drupal-langgraph/langgraph/session'
+  defaults:
+    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::run'
+    _title: 'Session Health'
+  requirements:
+    _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
+
+drupal_langgraph.langgraph_parity:
+  path: '/admin/reports/drupal-langgraph/langgraph/parity'
+  defaults:
+    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::test'
+    _title: 'Parity Health'
+  requirements:
+    _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
+
+drupal_langgraph.langgraph_feature_progress:
+  path: '/admin/reports/drupal-langgraph/langgraph/feature-progress'
+  defaults:
+    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::featureProgress'
+    _title: 'Feature Progress'
+  requirements:
+    _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
+
+drupal_langgraph.langgraph_release_status:
+  path: '/admin/reports/drupal-langgraph/langgraph/release-status'
+  defaults:
+    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::release'
+    _title: 'Release Status'
+  requirements:
+    _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
+
+drupal_langgraph.langgraph_console_build:
+  path: '/admin/reports/drupal-langgraph/langgraph-console/build'
+  defaults:
+    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::build'
+    _title: 'Build'
+  requirements:
+    _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
+
+drupal_langgraph.langgraph_console_test:
+  path: '/admin/reports/drupal-langgraph/langgraph-console/test'
+  defaults:
+    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::test'
+    _title: 'Test'
+  requirements:
+    _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
+
+drupal_langgraph.langgraph_console_run:
+  path: '/admin/reports/drupal-langgraph/langgraph-console/run'
+  defaults:
+    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::run'
+    _title: 'Run'
+  requirements:
+    _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
+
+drupal_langgraph.langgraph_console_observe:
+  path: '/admin/reports/drupal-langgraph/langgraph-console/observe'
+  defaults:
+    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::observe'
+    _title: 'Observe'
+  requirements:
+    _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
+
+drupal_langgraph.langgraph_console_release:
+  path: '/admin/reports/drupal-langgraph/langgraph-console/release'
+  defaults:
+    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::release'
+    _title: 'Release'
+  requirements:
+    _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
+
+drupal_langgraph.langgraph_console_admin:
+  path: '/admin/reports/drupal-langgraph/langgraph-console/admin'
+  defaults:
+    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::admin'
+    _title: 'Admin'
+  requirements:
+    _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
+
+drupal_langgraph.langgraph_console_subsection:
+  path: '/admin/reports/drupal-langgraph/langgraph-console/{section}/{subsection}'
+  defaults:
+    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::subsection'
+    _title: 'Subsection'
+  requirements:
+    _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
+    section: 'home|build|test|run|observe|release|admin'
+    subsection: '[a-z0-9-]+'

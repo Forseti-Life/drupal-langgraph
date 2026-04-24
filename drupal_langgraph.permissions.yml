@@ -1,0 +1,3 @@
+administer drupal langgraph:
+  title: 'Administer Drupal LangGraph'
+  description: 'Access the Drupal LangGraph console and linked release utilities.'

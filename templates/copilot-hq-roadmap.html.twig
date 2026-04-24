@@ -1,0 +1,48 @@
+<div class="container py-3">
+  <div class="row">
+    <div class="col-lg-10 mx-auto">
+      <h1 class="mb-3">{{ title }}</h1>
+      <p class="lead">{{ intro }}</p>
+
+      {% for project in projects %}
+        <div class="card mb-4">
+          <div class="card-body">
+            <div class="d-flex flex-column flex-md-row justify-content-between mb-3">
+              <div>
+                <h2 class="h4 mb-2">{{ project.title }}</h2>
+                <p class="mb-2">{{ project.summary }}</p>
+                {% if project.meta %}
+                  <p class="small text-muted mb-0">{{ project.meta }}</p>
+                {% endif %}
+              </div>
+              <span class="badge bg-info text-dark align-self-start mt-2 mt-md-0">{{ project.status }}</span>
+            </div>
+
+            <ul class="mb-3">
+              {% for item in project.roadmap %}
+                <li>{{ item }}</li>
+              {% endfor %}
+            </ul>
+
+            {% if project.pipeline_counts.total > 0 %}
+              <p class="small text-muted mb-3">
+                {{ project.pipeline_counts.implemented }} shipped /
+                {{ project.pipeline_counts.in_progress + project.pipeline_counts.queued }} active /
+                {{ project.pipeline_counts.pending }} pending
+                ({{ project.pipeline_counts.total }} total)
+              </p>
+            {% endif %}
+
+            {% if project.actions %}
+              <div>
+                {% for action in project.actions %}
+                  <a href="{{ action.url }}" class="btn btn-outline-primary me-2 mb-2">{{ action.text }}</a>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>

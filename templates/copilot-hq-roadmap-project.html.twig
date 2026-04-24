@@ -1,0 +1,110 @@
+<div class="container py-3">
+  <div class="row">
+    <div class="col-lg-10 mx-auto">
+      <h1 class="mb-3">{{ title }}</h1>
+      <p class="lead">{{ summary }}</p>
+
+      {% if nav_links %}
+        <div class="mb-4">
+          {% for link in nav_links %}
+            <a href="{{ link.url }}" class="btn btn-outline-primary me-2 mb-2">{{ link.text }}</a>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <div class="card mb-4">
+        <div class="card-body">
+          <h2 class="h5">Project metadata</h2>
+          <table class="table table-sm">
+            <tbody>
+              {% for label, value in meta %}
+                {% if value %}
+                  <tr>
+                    <th>{{ label }}</th>
+                    <td>{{ value }}</td>
+                  </tr>
+                {% endif %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {% if roadmap_reference %}
+        <p><strong>Roadmap reference:</strong> {{ roadmap_reference }}</p>
+      {% endif %}
+      {% if current_state %}
+        <p><strong>Current state:</strong> {{ current_state }}</p>
+      {% endif %}
+      {% if next_step %}
+        <p><strong>Next step:</strong> {{ next_step }}</p>
+      {% endif %}
+      {% if queue_status %}
+        <p><strong>Queue status:</strong> {{ queue_status }}</p>
+      {% endif %}
+
+      {% if goals %}
+        <div class="card mb-4">
+          <div class="card-body">
+            <h2 class="h5">Goals</h2>
+            <ul class="mb-0">
+              {% for goal in goals %}
+                <li>{{ goal }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+      {% endif %}
+
+      {% if pipeline_counts.total > 0 %}
+        <div class="card mb-4">
+          <div class="card-body">
+            <h2 class="h5">Pipeline status</h2>
+            <p class="mb-0">
+              {{ pipeline_counts.implemented }} shipped /
+              {{ pipeline_counts.in_progress }} in progress /
+              {{ pipeline_counts.queued }} queued /
+              {{ pipeline_counts.pending }} pending
+              ({{ pipeline_counts.total }} total)
+            </p>
+          </div>
+        </div>
+      {% endif %}
+
+      {% if feature_groups %}
+        {% for group_key, group in feature_groups %}
+          <div class="card mb-4">
+            <div class="card-body">
+              <h2 class="h5">{{ group.title }}</h2>
+              <p class="small text-muted">
+                {{ group.counts.implemented }} shipped /
+                {{ group.counts.in_progress }} in progress /
+                {{ group.counts.queued }} queued /
+                {{ group.counts.pending }} pending
+              </p>
+
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Feature</th>
+                    <th>Status</th>
+                    <th>Scope</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for feature in group.features %}
+                    <tr>
+                      <td><code>{{ feature.feature_id }}</code><br>{{ feature.title }}</td>
+                      <td>{{ feature.status_label }}</td>
+                      <td>{{ feature.scope }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {% endfor %}
+      {% endif %}
+    </div>
+  </div>
+</div>

@@ -1,0 +1,5 @@
+name: Drupal LangGraph
+type: module
+description: 'Unified roadmap and LangGraph console module for Drupal-managed LangGraph operations.'
+core_version_requirement: ^10 || ^11
+package: Forseti
