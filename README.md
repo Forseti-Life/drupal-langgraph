@@ -4,7 +4,7 @@ Drupal module repo scaffold for consolidating:
 
 - the public roadmap surface previously stranded in `forseti_content`
 - the LangGraph admin console currently housed in `forseti-copilot-agent-tracker`
-- HQ-backed file contracts from `dashboards/`, `features/`, `orchestrator/`, `scripts/`, `copilot-hq/`, and `tmp/`
+- HQ-backed file contracts from `dashboards/`, `features/`, `orchestrator/`, `scripts/`, `sessions/`, and `tmp/`
 
 ## Purpose
 
@@ -22,17 +22,20 @@ authoritative HQ files from the filesystem.
   - `/admin/reports/drupal-langgraph/langgraph-console`
   - build / test / run / observe / release / admin subsections
   - compatibility-facing aliases under `/admin/reports/drupal-langgraph/langgraph/*`
+  - release evidence / release troubleshooting parity sourced from HQ session artifacts
 - **HQ-backed services**
   - project registry parsing from `dashboards/PROJECTS.md`
   - project pipeline rollups from `features/*/feature.md`
-  - runtime artifact reads from `copilot-hq/inbox/responses/*` and `tmp/release-cycle-active/*`
+  - runtime artifact reads from `inbox/responses/*`, `sessions/*/artifacts/*`, and `tmp/release-cycle-active/*`
 
 ## Path contracts
 
 The module resolves paths from environment variables when present:
 
 - `FORSETI_ROOT` → defaults to `/home/ubuntu/forseti.life`
-- `COPILOT_HQ_ROOT` → defaults to `$FORSETI_ROOT/copilot-hq`
+- `COPILOT_HQ_ROOT` → optional override for non-canonical runtime roots
+
+By default the module now treats `/home/ubuntu/forseti.life` as the canonical HQ/runtime root and only falls back to older exported/copied HQ roots when the canonical path is unavailable.
 
 From those roots the module expects:
 
@@ -40,8 +43,11 @@ From those roots the module expects:
 - `dashboards/FEATURE_PROGRESS.md`
 - `dashboards/LANGGRAPH_CONTROL_PLANE_RUNBOOK.md`
 - `features/*/feature.md`
-- `copilot-hq/inbox/responses/langgraph-ticks.jsonl`
-- `copilot-hq/inbox/responses/langgraph-parity-latest.json`
+- `inbox/responses/langgraph-ticks.jsonl`
+- `inbox/responses/langgraph-parity-latest.json`
+- `sessions/*/artifacts/release-candidates/*/05-release-notes.md`
+- `sessions/*/artifacts/release-signoffs/*.md`
+- `sessions/*/inbox/*`
 - `tmp/release-cycle-active/*.release_id`
 
 ## Current migration posture
