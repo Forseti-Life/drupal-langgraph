@@ -23,6 +23,7 @@ authoritative HQ files from the filesystem.
   - `/admin/reports/drupal-langgraph/langgraph-console/org-chart`
   - build / test / run / observe / release / admin subsections
   - org chart view for seat hierarchy, ownership mappings, and instruction layers
+  - Chart.js hierarchy diagram with Board as the root and click-to-expand seat branches
   - Observe subsections: traces, metrics, drift, alerts, feature-progress
   - compatibility-facing aliases under `/admin/reports/drupal-langgraph/langgraph/*`
   - release evidence / release troubleshooting parity sourced from HQ session artifacts

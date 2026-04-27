@@ -13,3 +13,20 @@ flow_visualization:
   dependencies:
     - core/drupal
     - core/once
+
+org_chart_diagram:
+  version: 1.x
+  css:
+    theme:
+      css/org-chart-diagram.css: {}
+  js:
+    https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js:
+      type: external
+      minified: true
+      attributes:
+        defer: true
+    js/org-chart-diagram.js: {}
+  dependencies:
+    - core/drupal
+    - core/once
+    - core/drupalSettings

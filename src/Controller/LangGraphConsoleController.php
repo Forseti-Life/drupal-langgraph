@@ -125,6 +125,7 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
   public function orgChart(): array {
     $flows = $this->flows->allFlows();
     $build = $this->buildPage('Org Chart', 'Read-only relationship map for seats, ownership, instruction layers, and flow stewardship.', [], FALSE, 'org-chart');
+    $build['diagram'] = $this->orgChartDiagramSection();
     $build['summary'] = $this->tableDetails('Org Summary', ['Signal', 'Value'], $this->orgChart->summary($flows));
     $build['instruction_model'] = $this->tableDetails('Instruction Layer Model', ['Layer', 'Source', 'Purpose'], $this->orgChart->instructionModelRows());
     $build['flow_ownership'] = $this->tableDetails('Flow Ownership', ['Flow', 'Flow ID', 'Owning seat', 'Role', 'Supervisor', 'Status'], $this->flowOwnershipRows($flows));
@@ -134,6 +135,112 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
     }
 
     return $build;
+  }
+
+  private function orgChartDiagramSection(): array {
+    return [
+      '#type' => 'container',
+      '#attributes' => ['class' => ['drupal-langgraph-org-chart']],
+      'help' => [
+        '#markup' => '<p>' . $this->t('Hierarchy overview of the org execution model. Board is the synthetic root. Click a seat node in the diagram to expand or collapse its subordinate branch.') . '</p>',
+      ],
+      'canvas_wrapper' => [
+        '#type' => 'container',
+        '#attributes' => ['class' => ['drupal-langgraph-org-chart__canvas-wrapper']],
+        'canvas' => [
+          '#type' => 'html_tag',
+          '#tag' => 'canvas',
+          '#attributes' => [
+            'class' => ['drupal-langgraph-org-chart__canvas'],
+            'aria-label' => $this->t('Org chart hierarchy diagram'),
+            'role' => 'img',
+          ],
+        ],
+      ],
+      '#attached' => [
+        'library' => ['drupal_langgraph/org_chart_diagram'],
+        'drupalSettings' => [
+          'drupalLanggraph' => [
+            'orgChartDiagram' => $this->orgChartDiagramSettings(),
+          ],
+        ],
+      ],
+    ];
+  }
+
+  private function orgChartDiagramSettings(): array {
+    $seats = $this->orgChart->seats();
+    $nodes = [
+      [
+        'id' => 'board',
+        'label' => 'Board',
+        'subtitle' => 'Human owner',
+        'role' => 'board',
+        'parent' => NULL,
+        'paused' => FALSE,
+        'roleWeight' => 0,
+      ],
+    ];
+
+    foreach ($seats as $seat) {
+      $supervisor = (string) ($seat['supervisor'] ?? '');
+      $parent = ($supervisor !== '' && isset($seats[$supervisor])) ? $supervisor : 'board';
+      if ($supervisor === 'board') {
+        $parent = 'board';
+      }
+
+      $nodes[] = [
+        'id' => $seat['id'],
+        'label' => $seat['name'],
+        'subtitle' => $seat['id'],
+        'role' => $seat['role_label'],
+        'parent' => $parent,
+        'paused' => (bool) $seat['paused'],
+        'roleWeight' => $this->orgChartRoleWeight((string) ($seat['role'] ?? '')),
+      ];
+    }
+
+    return [
+      'nodes' => $nodes,
+      'initialCollapsed' => $this->orgChartInitialCollapsed($seats),
+    ];
+  }
+
+  private function orgChartInitialCollapsed(array $seats): array {
+    $children = [];
+    foreach ($seats as $seat) {
+      $supervisor = (string) ($seat['supervisor'] ?? '');
+      $parent = ($supervisor !== '' && isset($seats[$supervisor])) ? $supervisor : 'board';
+      if ($supervisor === 'board') {
+        $parent = 'board';
+      }
+      $children[$parent][] = $seat['id'];
+    }
+
+    $expanded = ['board', 'ceo-copilot-2'];
+    $collapsed = [];
+    foreach (array_keys($children) as $parent_id) {
+      if (!in_array($parent_id, $expanded, TRUE)) {
+        $collapsed[] = $parent_id;
+      }
+    }
+
+    sort($collapsed);
+    return $collapsed;
+  }
+
+  private function orgChartRoleWeight(string $role): int {
+    return match ($role) {
+      'ceo' => 1,
+      'architect' => 2,
+      'product-manager', 'project-manager' => 3,
+      'business-analyst' => 4,
+      'software-developer' => 5,
+      'tester' => 6,
+      'security-analyst' => 7,
+      'accountant' => 8,
+      default => 9,
+    };
   }
 
   public function flowDetail(string $flow_id): array {
