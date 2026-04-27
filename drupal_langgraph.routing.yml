@@ -26,10 +26,35 @@ drupal_langgraph.langgraph_console_home:
   requirements:
     _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
 
+drupal_langgraph.langgraph_console_flows:
+  path: '/admin/reports/drupal-langgraph/langgraph-console/flows'
+  defaults:
+    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::flows'
+    _title: 'Flows'
+  requirements:
+    _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
+
+drupal_langgraph.langgraph_console_flow_add:
+  path: '/admin/reports/drupal-langgraph/langgraph-console/flows/add'
+  defaults:
+    _form: '\Drupal\drupal_langgraph\Form\ProcessFlowAddForm'
+    _title: 'New Process Flow'
+  requirements:
+    _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
+
+drupal_langgraph.langgraph_console_flow_detail:
+  path: '/admin/reports/drupal-langgraph/langgraph-console/flows/{flow_id}'
+  defaults:
+    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::flowDetail'
+    _title: 'Process Flow'
+  requirements:
+    _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
+    flow_id: '[a-z0-9_]+'
+
 drupal_langgraph.langgraph_home:
   path: '/admin/reports/drupal-langgraph/langgraph'
   defaults:
-    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::home'
+    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::legacyHome'
     _title: 'Drupal LangGraph'
   requirements:
     _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
@@ -37,7 +62,7 @@ drupal_langgraph.langgraph_home:
 drupal_langgraph.langgraph_session:
   path: '/admin/reports/drupal-langgraph/langgraph/session'
   defaults:
-    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::run'
+    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::legacySession'
     _title: 'Session Health'
   requirements:
     _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
@@ -45,7 +70,7 @@ drupal_langgraph.langgraph_session:
 drupal_langgraph.langgraph_parity:
   path: '/admin/reports/drupal-langgraph/langgraph/parity'
   defaults:
-    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::test'
+    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::legacyParity'
     _title: 'Parity Health'
   requirements:
     _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
@@ -53,7 +78,7 @@ drupal_langgraph.langgraph_parity:
 drupal_langgraph.langgraph_feature_progress:
   path: '/admin/reports/drupal-langgraph/langgraph/feature-progress'
   defaults:
-    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::featureProgress'
+    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::legacyFeatureProgress'
     _title: 'Feature Progress'
   requirements:
     _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
@@ -61,7 +86,7 @@ drupal_langgraph.langgraph_feature_progress:
 drupal_langgraph.langgraph_release_status:
   path: '/admin/reports/drupal-langgraph/langgraph/release-status'
   defaults:
-    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::release'
+    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::legacyReleaseStatus'
     _title: 'Release Status'
   requirements:
     _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
@@ -121,5 +146,5 @@ drupal_langgraph.langgraph_console_subsection:
     _title: 'Subsection'
   requirements:
     _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
-    section: 'home|build|test|run|observe|release|admin'
+    section: 'home|flows|build|test|run|observe|release|admin'
     subsection: '[a-z0-9-]+'

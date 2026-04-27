@@ -1,0 +1,61 @@
+drupal_langgraph.process_flows:
+  type: config_object
+  label: 'Drupal LangGraph process flow registry'
+  mapping:
+    flows:
+      type: sequence
+      label: 'Custom process flows'
+      sequence:
+        type: mapping
+        mapping:
+          id:
+            type: string
+            label: 'Flow ID'
+          label:
+            type: label
+            label: 'Flow label'
+          description:
+            type: text
+            label: 'Description'
+          owner:
+            type: string
+            label: 'Owner'
+          status:
+            type: string
+            label: 'Status'
+          graph_type:
+            type: string
+            label: 'Graph type'
+          primary_section:
+            type: string
+            label: 'Primary section'
+          default_entrypoint:
+            type: string
+            label: 'Default entrypoint'
+          version:
+            type: string
+            label: 'Version'
+          source:
+            type: string
+            label: 'Source'
+          state_schema_summary:
+            type: text
+            label: 'State schema summary'
+          nodes:
+            type: sequence
+            label: 'Nodes'
+            sequence:
+              type: string
+          routing_rules:
+            type: sequence
+            label: 'Routing rules'
+            sequence:
+              type: string
+          tools:
+            type: sequence
+            label: 'Tools'
+            sequence:
+              type: string
+          prompt_notes:
+            type: text
+            label: 'Prompt notes'

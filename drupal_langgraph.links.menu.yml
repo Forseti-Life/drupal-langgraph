@@ -5,38 +5,44 @@ drupal_langgraph.langgraph_console_home:
   parent: system.admin_reports
   weight: 60
 
+drupal_langgraph.langgraph_console_flows:
+  title: 'Flows'
+  route_name: drupal_langgraph.langgraph_console_flows
+  parent: drupal_langgraph.langgraph_console_home
+  weight: 1
+
 drupal_langgraph.langgraph_console_build:
   title: 'Build'
   route_name: drupal_langgraph.langgraph_console_build
   parent: drupal_langgraph.langgraph_console_home
-  weight: 1
+  weight: 2
 
 drupal_langgraph.langgraph_console_test:
   title: 'Test'
   route_name: drupal_langgraph.langgraph_console_test
   parent: drupal_langgraph.langgraph_console_home
-  weight: 2
+  weight: 3
 
 drupal_langgraph.langgraph_console_run:
   title: 'Run'
   route_name: drupal_langgraph.langgraph_console_run
   parent: drupal_langgraph.langgraph_console_home
-  weight: 3
+  weight: 4
 
 drupal_langgraph.langgraph_console_observe:
   title: 'Observe'
   route_name: drupal_langgraph.langgraph_console_observe
   parent: drupal_langgraph.langgraph_console_home
-  weight: 4
+  weight: 5
 
 drupal_langgraph.langgraph_console_release:
   title: 'Release'
   route_name: drupal_langgraph.langgraph_console_release
   parent: drupal_langgraph.langgraph_console_home
-  weight: 5
+  weight: 6
 
 drupal_langgraph.langgraph_console_admin:
   title: 'Admin'
   route_name: drupal_langgraph.langgraph_console_admin
   parent: drupal_langgraph.langgraph_console_home
-  weight: 6
+  weight: 7

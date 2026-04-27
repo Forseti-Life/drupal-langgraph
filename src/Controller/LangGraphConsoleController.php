@@ -6,25 +6,61 @@ use Drupal\Core\Access\AccessResult;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
 use Drupal\Core\Link;
+use Drupal\Core\Render\Markup;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\Url;
+use Drupal\drupal_langgraph\Service\ProcessFlowContextService;
 use Drupal\drupal_langgraph\Service\HqPathManager;
+use Drupal\drupal_langgraph\Service\LangGraphObserveService;
+use Drupal\drupal_langgraph\Service\ProcessFlowRegistryService;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 final class LangGraphConsoleController extends ControllerBase implements ContainerInjectionInterface {
 
   public function __construct(
     private readonly HqPathManager $paths,
+    private readonly LangGraphObserveService $observe,
+    private readonly ProcessFlowRegistryService $flows,
+    private readonly ProcessFlowContextService $flowContext,
   ) {}
 
   public static function create(ContainerInterface $container): self {
-    return new self($container->get('drupal_langgraph.path_manager'));
+    return new self(
+      $container->get('drupal_langgraph.path_manager'),
+      $container->get('drupal_langgraph.observe_data'),
+      $container->get('drupal_langgraph.process_flow_registry'),
+      $container->get('drupal_langgraph.process_flow_context'),
+    );
   }
 
   public function adminAccess(AccountInterface $account): AccessResult {
     return AccessResult::allowedIfHasPermission($account, 'administer drupal langgraph')
       ->orIf(AccessResult::allowedIfHasPermission($account, 'administer copilot agent tracker'));
+  }
+
+  public function legacyHome(): RedirectResponse {
+    return $this->redirectToRoute('drupal_langgraph.langgraph_console_home');
+  }
+
+  public function legacySession(): RedirectResponse {
+    return $this->redirectToRoute('drupal_langgraph.langgraph_console_run');
+  }
+
+  public function legacyParity(): RedirectResponse {
+    return $this->redirectToRoute('drupal_langgraph.langgraph_console_test');
+  }
+
+  public function legacyFeatureProgress(): RedirectResponse {
+    return $this->redirectToRoute('drupal_langgraph.langgraph_console_subsection', [
+      'section' => 'observe',
+      'subsection' => 'feature-progress',
+    ]);
+  }
+
+  public function legacyReleaseStatus(): RedirectResponse {
+    return $this->redirectToRoute('drupal_langgraph.langgraph_console_release');
   }
 
   public function home(): array {
@@ -34,11 +70,76 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
     $org_control = $this->readOrgControl();
     $release_control = $this->readReleaseControl();
     $step_results = is_array($latest_tick['step_results'] ?? NULL) ? $latest_tick['step_results'] : [];
+    $tick_ts = (string) ($latest_tick['ts'] ?? '');
+    $tick_age = $this->formatAgeFromTimestamp($tick_ts);
+    $tick_epoch = $this->timestampToEpoch($tick_ts);
+    $tick_age_seconds = ($tick_epoch !== NULL) ? max(0, time() - $tick_epoch) : NULL;
+    $incident_rows = $this->observe->incidentRows(5);
+    $parity_ok = isset($parity['parity_ok']) ? (bool) $parity['parity_ok'] : NULL;
+    $engine_mode = (string) ($latest_tick['engine_mode'] ?? 'unknown');
+    $runtime_health = $this->overviewRuntimeHealth($tick_age_seconds, $parity_ok, $engine_mode);
+    $freshness = $this->overviewFreshness($tick_age_seconds, $tick_age);
+    $automation = $this->overviewAutomationState($org_control, $release_control);
+    $next_action = $this->overviewNextAction($tick_age_seconds, $org_control, $release_control, $parity_ok, $incident_rows);
+    $exception_rows = $this->overviewExceptionRows($tick_age_seconds, $tick_age, $parity_ok, $engine_mode, $org_control, $release_control, $incident_rows);
 
-    $build = $this->buildPage('Drupal LangGraph Console', 'Control-plane frame for the consolidated roadmap and LangGraph management surface.', $this->buildSectionRows('home'));
+    $build = $this->buildPage('Overview', 'Operator dashboard for the LangGraph control plane.', [], FALSE);
+    $build['summary'] = [
+      '#type' => 'table',
+      '#header' => [
+        $this->t('Runtime health'),
+        $this->t('Data freshness'),
+        $this->t('Automation state'),
+        $this->t('Active alerts'),
+      ],
+      '#rows' => [[
+        $runtime_health,
+        $freshness,
+        $automation,
+        (string) count($incident_rows),
+      ]],
+    ];
+    $build['actions'] = [
+      '#type' => 'container',
+      'flows' => [
+        '#type' => 'link',
+        '#title' => $this->t('Open Flows'),
+        '#url' => Url::fromRoute('drupal_langgraph.langgraph_console_flows'),
+        '#attributes' => ['class' => ['button', 'button--primary']],
+      ],
+      'new_flow' => [
+        '#type' => 'link',
+        '#title' => $this->t('New Process Flow'),
+        '#url' => Url::fromRoute('drupal_langgraph.langgraph_console_flow_add'),
+        '#attributes' => ['class' => ['button']],
+      ],
+      'alerts' => [
+        '#type' => 'link',
+        '#title' => $this->t('Observe Alerts'),
+        '#url' => Url::fromRoute('drupal_langgraph.langgraph_console_subsection', ['section' => 'observe', 'subsection' => 'alerts']),
+        '#attributes' => ['class' => ['button']],
+      ],
+      'release' => [
+        '#type' => 'link',
+        '#title' => $this->t('Release Status'),
+        '#url' => Url::fromRoute('drupal_langgraph.langgraph_console_release'),
+        '#attributes' => ['class' => ['button']],
+      ],
+      'help' => ['#markup' => '<p>' . $this->t('Start from flows when working on a specific process flow, or jump directly to alerts and release state when triaging the control plane.') . '</p>'],
+    ];
+    if ($current_flow = $this->selectedFlow()) {
+      $build['current_flow'] = $this->currentFlowDetailsBuild($current_flow);
+    }
+    $build['exceptions'] = $this->tableDetails('Needs Attention', ['Issue', 'Current state', 'Recommended action'], $exception_rows);
+    $build['recent_activity'] = $this->tableDetails('Recent Activity & Next Step', ['Signal', 'Value'], [
+      ['Latest tick timestamp', $tick_ts !== '' ? $tick_ts : 'unavailable'],
+      ['Latest tick age', $tick_age],
+      ['Latest incident', isset($incident_rows[0]) ? (($incident_rows[0]['severity'] ?? 'unknown') . ': ' . ($incident_rows[0]['summary'] ?? '')) : 'No recent incidents'],
+      ['Recommended next step', $next_action],
+    ]);
     $build['live_status'] = $this->tableDetails('Live Runtime Status', ['Signal', 'Current Value', 'Source'], [
       ['Latest tick timestamp', (string) ($latest_tick['ts'] ?? 'unavailable'), $this->toRelativePath($paths['ticks'])],
-      ['Latest tick age', $this->formatAgeFromTimestamp((string) ($latest_tick['ts'] ?? '')), 'derived from latest tick timestamp'],
+      ['Latest tick age', $tick_age, 'derived from latest tick timestamp'],
       ['Engine mode', (string) ($latest_tick['engine_mode'] ?? 'unknown'), $this->toRelativePath($paths['ticks'])],
       ['Provider', (string) ($latest_tick['provider'] ?? 'unknown'), $this->toRelativePath($paths['ticks'])],
       ['dry_run', $this->boolLabel($latest_tick['dry_run'] ?? NULL), $this->toRelativePath($paths['ticks'])],
@@ -66,6 +167,74 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
     ]);
 
     return $build;
+  }
+
+  public function flows(): array {
+    $build = $this->buildPage('Flows', 'Registry and control panel for all process flows managed by Drupal LangGraph.', $this->buildSectionRows('flows'));
+    $build['actions'] = [
+      '#type' => 'container',
+      'link' => [
+        '#type' => 'link',
+        '#title' => $this->t('New process flow'),
+        '#url' => Url::fromRoute('drupal_langgraph.langgraph_console_flow_add'),
+        '#attributes' => ['class' => ['button', 'button--primary']],
+      ],
+      'help' => ['#markup' => '<p>' . $this->t('Use the flow registry to select an existing process flow or start a new draft flow definition.') . '</p>'],
+    ];
+    $build['registry'] = $this->tableDetails('Process Flow Registry', ['Flow', 'Flow ID', 'Status', 'Owner', 'Version', 'Default entrypoint', 'Primary section', 'Source', 'Actions'], $this->buildFlowRegistryRows());
+    $build['command_map'] = $this->tableDetails('Command-to-Control Mapping', ['LangGraph command', 'Console control', 'Section'], $this->flows->commandControlMap());
+
+    return $this->withCurrentFlowContext($build);
+  }
+
+  public function flowDetail(string $flow_id): array {
+    $flow = $this->flows->getFlow($flow_id);
+    if ($flow === NULL) {
+      throw new NotFoundHttpException();
+    }
+    $this->flowContext->setCurrentFlowId($flow_id);
+
+    return [
+      '#type' => 'container',
+      '#cache' => ['max-age' => 0],
+      'title' => ['#markup' => '<h2>' . $this->t('@flow', ['@flow' => $flow['label']]) . '</h2>'],
+      'description' => ['#markup' => '<p>' . $this->t('@description', ['@description' => $flow['description']]) . '</p>'],
+      'actions' => [
+        '#markup' => '<p>' .
+          Link::fromTextAndUrl($this->t('Back to Flows'), Url::fromRoute('drupal_langgraph.langgraph_console_flows'))->toString() .
+          ' | ' .
+          Link::fromTextAndUrl($this->t('Build'), Url::fromRoute('drupal_langgraph.langgraph_console_build'))->toString() .
+          ' | ' .
+          Link::fromTextAndUrl($this->t('Test'), Url::fromRoute('drupal_langgraph.langgraph_console_test'))->toString() .
+          ' | ' .
+          Link::fromTextAndUrl($this->t('Run'), Url::fromRoute('drupal_langgraph.langgraph_console_run'))->toString() .
+          ' | ' .
+          Link::fromTextAndUrl($this->t('Observe'), Url::fromRoute('drupal_langgraph.langgraph_console_observe'))->toString() .
+          ' | ' .
+          Link::fromTextAndUrl($this->t('Release'), Url::fromRoute('drupal_langgraph.langgraph_console_release'))->toString() .
+          ' | ' .
+          Link::fromTextAndUrl($this->t('Create new process flow'), Url::fromRoute('drupal_langgraph.langgraph_console_flow_add'))->toString() .
+          '</p>',
+      ],
+      'summary' => $this->tableDetails('Flow Summary', ['Field', 'Value'], [
+        ['Flow ID', $flow['id']],
+        ['Status', $flow['status']],
+        ['Owner', $flow['owner']],
+        ['Graph type', $flow['graph_type']],
+        ['Primary section', $flow['primary_section']],
+        ['Default entrypoint', $flow['default_entrypoint']],
+        ['Version', $flow['version']],
+        ['Source', $flow['source']],
+      ]),
+      'structure' => $this->tableDetails('Flow Structure', ['Field', 'Value'], [
+        ['State schema', $flow['state_schema_summary'] !== '' ? $flow['state_schema_summary'] : '-'],
+        ['Nodes', isset($flow['nodes']) && $flow['nodes'] !== [] ? implode(', ', $flow['nodes']) : '-'],
+        ['Routing rules', isset($flow['routing_rules']) && $flow['routing_rules'] !== [] ? implode(' | ', $flow['routing_rules']) : '-'],
+        ['Tools', isset($flow['tools']) && $flow['tools'] !== [] ? implode(', ', $flow['tools']) : '-'],
+        ['Prompt notes', $flow['prompt_notes'] !== '' ? $flow['prompt_notes'] : '-'],
+      ]),
+      'command_map' => $this->tableDetails('Mapped Console Controls', ['LangGraph command', 'Console control', 'Section'], $this->flows->commandControlMap()),
+    ];
   }
 
   public function build(): array {
@@ -116,20 +285,127 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
   }
 
   public function observe(): array {
-    $latest_tick = $this->readLatestTick();
-    $steps = is_array($latest_tick['step_results'] ?? NULL) ? $latest_tick['step_results'] : [];
-    $rows = [];
-    foreach ($steps as $node => $detail) {
-      if ($node === 'summarize_tick' || !is_array($detail)) {
-        continue;
-      }
-      $status = isset($detail['error']) || !empty($detail['errors']) ? 'error' : (isset($detail['skipped']) ? 'skipped' : 'ok');
-      $rows[] = [(string) $node, $status, $this->detailSummary($detail, ['mode', 'rc', 'skipped', 'error'])];
+    $build = $this->buildPage('Observe', 'Observability view over node diagnostics and runtime behavior.', $this->buildSectionRows('observe'));
+    $build['overview'] = $this->tableDetails('Observe Overview', ['Signal', 'Current Value'], $this->observe->overviewSummary());
+    $build['metrics'] = $this->tableDetails('Latest Runtime Metrics', ['Metric', 'Value'], $this->buildObserveMetricRows($this->observe->metricSummary()), $this->toRelativePath($this->paths->artifactPaths()['ticks']));
+    $build['incidents'] = $this->tableDetails('Recent Incidents', ['Timestamp', 'Severity', 'Category', 'Seat', 'Summary'], $this->buildObserveIncidentRows(array_slice($this->observe->incidentRows(), 0, 10)));
+    return $build;
+  }
+
+  public function observeTraces(): array {
+    $rows = $this->observe->nodeTraceRows();
+    $build = [
+      '#type' => 'container',
+      '#cache' => ['max-age' => 0],
+      'title' => ['#markup' => '<h2>' . $this->t('Observe: Node Traces') . '</h2>'],
+      'description' => ['#markup' => '<p>' . $this->t('Latest step-level trace evidence from the LangGraph tick stream.') . '</p>'],
+      'table' => $this->tableDetails('Latest Tick Traces', ['Step', 'Tick timestamp', 'Status', 'Summary'], array_map(
+        static fn(array $row): array => [$row['step'], $row['timestamp'], $row['status'], $row['summary']],
+        $rows
+      ), $this->toRelativePath($this->paths->artifactPaths()['ticks'])),
+      'back' => ['#markup' => '<p>' . Link::fromTextAndUrl($this->t('Back to Observe'), Url::fromRoute('drupal_langgraph.langgraph_console_observe'))->toString() . '</p>'],
+    ];
+
+    foreach (array_slice($rows, 0, 12) as $index => $row) {
+      $build['detail_' . $index] = $this->textDetails('Trace Detail: ' . $row['step'], $row['details'], $this->toRelativePath($this->paths->artifactPaths()['ticks']));
     }
 
-    $build = $this->buildPage('Observe', 'Observability view over node diagnostics and runtime behavior.', $this->buildSectionRows('observe'));
-    $build['node_diagnostics'] = $this->tableDetails('Latest Node Diagnostics', ['Node', 'Status', 'Details'], $rows, $this->toRelativePath($this->paths->artifactPaths()['ticks']));
-    return $build;
+    return $this->withCurrentFlowContext($build);
+  }
+
+  public function observeMetrics(): array {
+    $summary = $this->observe->metricSummary();
+    $trend = $this->observe->metricTrendRows();
+    $anomalies = $this->observe->metricAnomalies();
+
+    $build = [
+      '#type' => 'container',
+      '#cache' => ['max-age' => 0],
+      'title' => ['#markup' => '<h2>' . $this->t('Observe: Runtime Metrics') . '</h2>'],
+      'description' => ['#markup' => '<p>' . $this->t('Cadence, queue depth, worker counts, and error volume derived from recent ticks.') . '</p>'],
+      'summary' => $this->tableDetails('Current Metrics', ['Metric', 'Value'], $this->buildObserveMetricRows($summary), $this->toRelativePath($this->paths->artifactPaths()['ticks'])),
+      'trend' => $this->tableDetails('Recent Tick Trend', ['Timestamp', 'Gap (s)', 'Selected agents', 'Queued agents', 'Workers', 'Error count'], array_map(
+        static fn(array $row): array => [
+          $row['timestamp'],
+          isset($row['gap_seconds']) ? (string) $row['gap_seconds'] : '-',
+          (string) $row['selected_agents'],
+          (string) $row['queued_agents'],
+          (string) $row['workers'],
+          (string) $row['error_count'],
+        ],
+        $trend
+      ), $this->toRelativePath($this->paths->artifactPaths()['ticks'])),
+      'back' => ['#markup' => '<p>' . Link::fromTextAndUrl($this->t('Back to Observe'), Url::fromRoute('drupal_langgraph.langgraph_console_observe'))->toString() . '</p>'],
+    ];
+
+    if ($anomalies !== []) {
+      $build['anomalies'] = [
+        '#theme' => 'item_list',
+        '#title' => $this->t('Detected anomalies'),
+        '#items' => $anomalies,
+      ];
+    }
+
+    return $this->withCurrentFlowContext($build);
+  }
+
+  public function observeDrift(): array {
+    return $this->withCurrentFlowContext([
+      '#type' => 'container',
+      '#cache' => ['max-age' => 0],
+      'title' => ['#markup' => '<h2>' . $this->t('Observe: Drift') . '</h2>'],
+      'description' => ['#markup' => '<p>' . $this->t('Recent node behavior drift versus the historical tick baseline. Current artifacts do not expose per-step duration, so this view tracks presence and error-rate drift.') . '</p>'],
+      'table' => $this->tableDetails(
+        'Node Behavior Drift',
+        ['Step', 'Baseline presence %', 'Baseline error %', 'Recent error %', 'Delta %', 'Latest status'],
+        array_map(
+          static fn(array $row): array => [
+            $row['step'],
+            (string) $row['baseline_presence_pct'],
+            (string) $row['baseline_error_pct'],
+            (string) $row['recent_error_pct'],
+            (string) $row['delta_pct'],
+            $row['latest_status'],
+          ],
+          $this->observe->driftRows()
+        ),
+        $this->toRelativePath($this->paths->artifactPaths()['ticks'])
+      ),
+      'back' => ['#markup' => '<p>' . Link::fromTextAndUrl($this->t('Back to Observe'), Url::fromRoute('drupal_langgraph.langgraph_console_observe'))->toString() . '</p>'],
+    ]);
+  }
+
+  public function observeAlerts(): array {
+    return $this->withCurrentFlowContext([
+      '#type' => 'container',
+      '#cache' => ['max-age' => 0],
+      'title' => ['#markup' => '<h2>' . $this->t('Observe: Alerts & Incidents') . '</h2>'],
+      'description' => ['#markup' => '<p>' . $this->t('Executor failures, blocked items, and timeout-like log signals surfaced from HQ runtime artifacts.') . '</p>'],
+      'table' => $this->tableDetails(
+        'Recent Incidents',
+        ['Timestamp', 'Severity', 'Category', 'Seat', 'Summary', 'Path'],
+        $this->buildObserveIncidentRows($this->observe->incidentRows(), TRUE)
+      ),
+      'back' => ['#markup' => '<p>' . Link::fromTextAndUrl($this->t('Back to Observe'), Url::fromRoute('drupal_langgraph.langgraph_console_observe'))->toString() . '</p>'],
+    ]);
+  }
+
+  public function observeFeatureProgress(): array {
+    $feature_progress = $this->observe->langGraphFeatureProgress();
+    return $this->withCurrentFlowContext([
+      '#type' => 'container',
+      '#cache' => ['max-age' => 0],
+      'title' => ['#markup' => '<h2>' . $this->t('Observe: Feature Progress') . '</h2>'],
+      'description' => ['#markup' => '<p>' . $this->t('Flow-scoped LangGraph feature progress view, anchored to the currently selected process flow.') . '</p>'],
+      'generated' => [
+        '#markup' => '<p><strong>' . $this->t('Generated') . ':</strong> ' . $this->t('@generated', [
+          '@generated' => $feature_progress['generated_at'] !== '' ? $feature_progress['generated_at'] : 'unknown',
+        ]) . '</p>',
+      ],
+      'summary' => $this->tableDetails('LangGraph Status Summary', ['Status', 'Count'], $this->observe->featureProgressSummaryRows(), $this->toRelativePath($this->paths->artifactPaths()['feature_progress'])),
+      'table' => $this->tableDetails('LangGraph Feature Rows', ['Work item', 'Module', 'Status', 'Priority'], $this->observe->featureProgressRows(), $this->toRelativePath($this->paths->artifactPaths()['feature_progress'])),
+      'back' => ['#markup' => '<p>' . Link::fromTextAndUrl($this->t('Back to Observe'), Url::fromRoute('drupal_langgraph.langgraph_console_observe'))->toString() . '</p>'],
+    ]);
   }
 
   public function release(): array {
@@ -146,7 +422,7 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
     ], $this->toRelativePath($this->activeControlPath('RELEASE_CYCLE_CONTROL_FILE', 'release_control_default', 'release_control_legacy')));
     $build['release_state'] = $this->tableDetails('Release Cycle State', ['Team', 'Current Release', 'Next Release', 'Source'], $release_rows);
     $build['coverage'] = $this->tableDetails('Active Release Evidence Coverage', ['Release id', 'Release notes', 'PM signoffs'], $coverage_rows);
-    return $build;
+    return $this->withCurrentFlowContext($build);
   }
 
   public function releaseEvidence(): array {
@@ -190,7 +466,7 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
       $build['latest_note'] = $this->textDetails('Latest Release-note Excerpt', $notes[0]['excerpt'], $notes[0]['path']);
     }
 
-    return $build;
+    return $this->withCurrentFlowContext($build);
   }
 
   public function releaseTroubleshooting(): array {
@@ -209,14 +485,14 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
       ];
     }
 
-    return [
+    return $this->withCurrentFlowContext([
       '#type' => 'container',
       '#cache' => ['max-age' => 0],
       'title' => ['#markup' => '<h2>' . $this->t('Release: Troubleshooting') . '</h2>'],
       'description' => ['#markup' => '<p>' . $this->t('Seat-level triage of live inbox pressure, blocker-like work, and escalation-oriented items.') . '</p>'],
       'active_work' => $this->tableDetails('Active Inbox Items', ['Seat', 'Item', 'Triage', 'Status', 'ROI', 'Age', 'Summary', 'Path'], $rows),
       'back' => ['#markup' => '<p>' . Link::fromTextAndUrl($this->t('Back to Release'), Url::fromRoute('drupal_langgraph.langgraph_console_release'))->toString() . '</p>'],
-    ];
+    ]);
   }
 
   public function featureProgress(): array {
@@ -259,7 +535,7 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
       ]) . '</p>',
     ];
     $build['table'] = $this->tableDetails('Feature Progress', ['Work item', 'Website', 'Module', 'Status', 'Priority', 'PM', 'Dev', 'QA'], $rows, $this->toRelativePath($this->paths->artifactPaths()['feature_progress']));
-    return $build;
+    return $this->withCurrentFlowContext($build);
   }
 
   public function admin(): array {
@@ -285,7 +561,7 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
   }
 
   public function adminRuntimeRoots(): array {
-    return [
+    return $this->withCurrentFlowContext([
       '#type' => 'container',
       '#cache' => ['max-age' => 0],
       'title' => ['#markup' => '<h2>' . $this->t('Admin: Runtime Roots') . '</h2>'],
@@ -295,7 +571,7 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
         ['COPILOT_HQ_ROOT', $this->paths->hqRuntimeRoot()],
       ]),
       'back' => ['#markup' => '<p>' . Link::fromTextAndUrl($this->t('Back to Admin'), Url::fromRoute('drupal_langgraph.langgraph_console_admin'))->toString() . '</p>'],
-    ];
+    ]);
   }
 
   public function subsection(string $section, string $subsection): array {
@@ -315,14 +591,14 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
       return $this->{$method}();
     }
 
-    return [
+    return $this->withCurrentFlowContext([
       '#type' => 'container',
       '#cache' => ['max-age' => 0],
       'title' => ['#markup' => '<h2>' . $this->t('@section: @subsection', ['@section' => $map[$section]['title'], '@subsection' => $sub_info['title']]) . '</h2>'],
       'description' => ['#markup' => '<p>' . $this->t($sub_info['description']) . '</p>'],
       'notice' => ['#markup' => '<div class="messages messages--status"><strong>' . $this->t('Stub Subsection') . ':</strong> ' . $this->t('This subsection frame is ready for future workflow wiring.') . '</div>'],
       'back' => ['#markup' => '<p>' . Link::fromTextAndUrl($this->t('Back to @section', ['@section' => $map[$section]['title']]), Url::fromRoute('drupal_langgraph.langgraph_console_' . $section))->toString() . '</p>'],
-    ];
+    ]);
   }
 
   private function sectionMap(): array {
@@ -331,6 +607,13 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
         'title' => 'Home',
         'subsections' => [
           'runtime-status' => ['title' => 'Runtime Status', 'description' => 'High-level runtime health and control posture.', 'method' => 'home'],
+        ],
+      ],
+      'flows' => [
+        'title' => 'Flows',
+        'subsections' => [
+          'registry' => ['title' => 'Flow Registry', 'description' => 'Control panel for built-in and custom process flows.', 'method' => 'flows'],
+          'new-flow' => ['title' => 'New Process Flow', 'description' => 'Create a draft process flow definition for the Drupal LangGraph console.'],
         ],
       ],
       'build' => [
@@ -354,7 +637,11 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
       'observe' => [
         'title' => 'Observe',
         'subsections' => [
-          'node-diagnostics' => ['title' => 'Node Diagnostics', 'description' => 'Latest node-level diagnostics and anomalies.', 'method' => 'observe'],
+          'traces' => ['title' => 'Node Traces', 'description' => 'Latest step-level trace evidence from the tick stream.', 'method' => 'observeTraces'],
+          'metrics' => ['title' => 'Runtime Metrics', 'description' => 'Cadence, queue depth, workers, and anomaly signals.', 'method' => 'observeMetrics'],
+          'drift' => ['title' => 'Drift', 'description' => 'Recent node behavior drift versus the historical baseline.', 'method' => 'observeDrift'],
+          'alerts' => ['title' => 'Alerts & Incidents', 'description' => 'Executor failures, blocked items, and timeout-like log signals.', 'method' => 'observeAlerts'],
+          'feature-progress' => ['title' => 'Feature Progress', 'description' => 'LangGraph-only view of the HQ feature progress dashboard.', 'method' => 'observeFeatureProgress'],
         ],
       ],
       'release' => [
@@ -378,8 +665,14 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
   private function buildSectionRows(string $section): array {
     $rows = [];
     foreach ($this->sectionMap()[$section]['subsections'] as $slug => $info) {
+      $route = 'drupal_langgraph.langgraph_console_subsection';
+      $parameters = ['section' => $section, 'subsection' => $slug];
+      if ($section === 'flows' && $slug === 'new-flow') {
+        $route = 'drupal_langgraph.langgraph_console_flow_add';
+        $parameters = [];
+      }
       $rows[] = [
-        Link::fromTextAndUrl($this->t($info['title']), Url::fromRoute('drupal_langgraph.langgraph_console_subsection', ['section' => $section, 'subsection' => $slug]))->toString(),
+        Link::fromTextAndUrl($this->t($info['title']), Url::fromRoute($route, $parameters))->toString(),
         $info['description'],
         $this->t('Ready'),
       ];
@@ -387,13 +680,17 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
     return $rows;
   }
 
-  private function buildPage(string $title, string $description, array $sections): array {
+  private function buildPage(string $title, string $description, array $sections, bool $include_flow_context = TRUE): array {
     $build = [
       '#type' => 'container',
       '#cache' => ['max-age' => 0],
       'title' => ['#markup' => '<h2>' . $this->t($title) . '</h2>'],
       'description' => ['#markup' => '<p>' . $this->t($description) . '</p>'],
     ];
+
+    if ($include_flow_context && ($current_flow = $this->selectedFlow())) {
+      $build['current_flow'] = $this->currentFlowDetailsBuild($current_flow);
+    }
 
     if ($sections !== []) {
       $build['sections'] = [
@@ -404,6 +701,58 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
     }
 
     return $build;
+  }
+
+  private function buildObserveMetricRows(array $metrics): array {
+    $rows = [];
+    foreach ($metrics as $label => $value) {
+      $rows[] = [str_replace('_', ' ', $label), isset($value) ? (string) $value : '-'];
+    }
+    return $rows;
+  }
+
+  private function buildObserveIncidentRows(array $rows, bool $include_path = FALSE): array {
+    return array_map(
+      function (array $row) use ($include_path): array {
+        $base = [
+          $row['timestamp'] ?? '',
+          $row['severity'] ?? '',
+          $row['category'] ?? '',
+          $row['seat'] ?? '',
+          $row['summary'] ?? '',
+        ];
+        if ($include_path) {
+          $base[] = isset($row['path']) ? $this->toRelativePath((string) $row['path']) : '';
+        }
+        return $base;
+      },
+      $rows
+    );
+  }
+
+  private function buildFlowRegistryRows(): array {
+    $rows = [];
+    foreach ($this->flows->allFlows() as $flow) {
+      $rows[] = [
+        ['data' => [
+          '#type' => 'link',
+          '#title' => $flow['label'],
+          '#url' => Url::fromRoute('drupal_langgraph.langgraph_console_flow_detail', ['flow_id' => $flow['id']]),
+        ]],
+        $flow['id'],
+        $flow['status'],
+        $flow['owner'],
+        $flow['version'],
+        $flow['default_entrypoint'],
+        $flow['primary_section'],
+        ucfirst(str_replace('_', ' ', $flow['source'])),
+        ['data' => [
+          '#markup' => Markup::create(Link::fromTextAndUrl($this->t('Open'), Url::fromRoute('drupal_langgraph.langgraph_console_flow_detail', ['flow_id' => $flow['id']]))->toString()),
+        ]],
+      ];
+    }
+
+    return $rows;
   }
 
   private function tableDetails(string $title, array $header, array $rows, ?string $source = NULL): array {
@@ -447,6 +796,148 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
 
   private function boolLabel(mixed $value): string {
     return isset($value) ? ((bool) $value ? 'yes' : 'no') : 'unknown';
+  }
+
+  private function selectedFlow(): ?array {
+    $flow_id = $this->flowContext->getCurrentFlowId();
+    if ($flow_id === NULL) {
+      return NULL;
+    }
+
+    return $this->flows->getFlow($flow_id);
+  }
+
+  private function withCurrentFlowContext(array $build): array {
+    $current_flow = $this->selectedFlow();
+    if ($current_flow === NULL || isset($build['current_flow'])) {
+      return $build;
+    }
+
+    $build['current_flow'] = $this->currentFlowDetailsBuild($current_flow);
+
+    $title = $build['title'] ?? NULL;
+    $description = $build['description'] ?? NULL;
+    unset($build['title'], $build['description']);
+
+    $prefixed = [];
+    if ($title !== NULL) {
+      $prefixed['title'] = $title;
+    }
+    if ($description !== NULL) {
+      $prefixed['description'] = $description;
+    }
+    $prefixed['current_flow'] = $build['current_flow'];
+    unset($build['current_flow']);
+
+    return $prefixed + $build;
+  }
+
+  private function currentFlowDetailsBuild(array $current_flow): array {
+    return [
+      '#type' => 'details',
+      '#title' => $this->t('Current process flow: @label', ['@label' => $current_flow['label']]),
+      '#open' => TRUE,
+      'summary' => [
+        '#type' => 'table',
+        '#header' => [$this->t('Field'), $this->t('Value')],
+        '#rows' => [
+          [$this->t('Flow ID'), $current_flow['id']],
+          [$this->t('Status'), $current_flow['status']],
+          [$this->t('Owner'), $current_flow['owner']],
+          [$this->t('Graph type'), $current_flow['graph_type']],
+          [$this->t('Default entrypoint'), $current_flow['default_entrypoint']],
+          [$this->t('Primary section'), $current_flow['primary_section']],
+        ],
+      ],
+      'actions' => [
+        '#markup' => '<p>' .
+          Link::fromTextAndUrl($this->t('Open flow'), Url::fromRoute('drupal_langgraph.langgraph_console_flow_detail', ['flow_id' => $current_flow['id']]))->toString() .
+          ' | ' .
+          Link::fromTextAndUrl($this->t('Flows registry'), Url::fromRoute('drupal_langgraph.langgraph_console_flows'))->toString() .
+          '</p>',
+      ],
+    ];
+  }
+
+  private function overviewRuntimeHealth(?int $tick_age_seconds, ?bool $parity_ok, string $engine_mode): string {
+    if ($tick_age_seconds === NULL || $tick_age_seconds > 3600 || $parity_ok === FALSE) {
+      return 'Needs attention';
+    }
+    if ($engine_mode === 'unknown') {
+      return 'Degraded';
+    }
+    return 'Healthy';
+  }
+
+  private function overviewFreshness(?int $tick_age_seconds, string $formatted_age): string {
+    if ($tick_age_seconds === NULL) {
+      return 'Unknown';
+    }
+    if ($tick_age_seconds > 3600) {
+      return 'Stale (' . $formatted_age . ')';
+    }
+    if ($tick_age_seconds > 900) {
+      return 'Delayed (' . $formatted_age . ')';
+    }
+    return 'Fresh (' . $formatted_age . ')';
+  }
+
+  private function overviewAutomationState(array $org_control, array $release_control): string {
+    $org_enabled = $org_control['enabled'] ?? NULL;
+    $release_enabled = $release_control['enabled'] ?? NULL;
+    if ($org_enabled === NULL || $release_enabled === NULL) {
+      return 'Unknown';
+    }
+    if ((bool) $org_enabled && (bool) $release_enabled) {
+      return 'Enabled';
+    }
+    return 'Partially disabled';
+  }
+
+  private function overviewExceptionRows(?int $tick_age_seconds, string $tick_age, ?bool $parity_ok, string $engine_mode, array $org_control, array $release_control, array $incidents): array {
+    $rows = [];
+    if ($tick_age_seconds === NULL || $tick_age_seconds > 3600) {
+      $rows[] = ['Tick freshness', $tick_age_seconds === NULL ? 'Unknown freshness' : 'Stale: ' . $tick_age, 'Open Observe and investigate tick cadence.'];
+    }
+    if ($parity_ok === FALSE) {
+      $rows[] = ['Parity health', 'FAIL', 'Open Test and review parity evidence.'];
+    }
+    if ($engine_mode === 'unknown') {
+      $rows[] = ['Engine mode', 'unknown', 'Verify runtime artifacts and engine-mode emission.'];
+    }
+    if (($org_control['enabled'] ?? NULL) === NULL || ($release_control['enabled'] ?? NULL) === NULL) {
+      $rows[] = ['Automation controls', 'Unknown control state', 'Validate control artifacts and admin/runtime roots.'];
+    }
+    if ($incidents !== []) {
+      $rows[] = ['Recent incidents', (string) count($incidents) . ' incident(s) in recent history', 'Open Observe Alerts for incident detail.'];
+    }
+    if ($rows === []) {
+      $rows[] = ['No critical exceptions', 'Overview signals are within expected range.', 'Open Flows or Observe for deeper work.'];
+    }
+    return $rows;
+  }
+
+  private function overviewNextAction(?int $tick_age_seconds, array $org_control, array $release_control, ?bool $parity_ok, array $incidents): string {
+    if ($tick_age_seconds === NULL || $tick_age_seconds > 3600) {
+      return 'Open Observe and investigate stale runtime data.';
+    }
+    if (($org_control['enabled'] ?? NULL) === NULL || ($release_control['enabled'] ?? NULL) === NULL) {
+      return 'Open Admin and confirm control artifacts are readable.';
+    }
+    if ($parity_ok === FALSE) {
+      return 'Open Test and resolve parity failures.';
+    }
+    if ($incidents !== []) {
+      return 'Open Observe Alerts and triage the newest incident.';
+    }
+    if ($this->selectedFlow() !== NULL) {
+      return 'Open the selected flow and continue work in its lifecycle tabs.';
+    }
+    return 'Open Flows and choose or create the next process flow.';
+  }
+
+  private function redirectToRoute(string $route_name, array $parameters = []): RedirectResponse {
+    return new RedirectResponse(Url::fromRoute($route_name, $parameters)->toString());
   }
 
   private function detailSummary(array $detail, array $keys): string {
@@ -804,6 +1295,14 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
       return 'unknown';
     }
     return (string) max(0, time() - $value) . 's';
+  }
+
+  private function timestampToEpoch(string $ts): ?int {
+    if ($ts === '') {
+      return NULL;
+    }
+    $value = strtotime($ts);
+    return ($value === FALSE) ? NULL : (int) $value;
   }
 
   private function formatAgeFromEpoch(int $epoch): string {

@@ -2,6 +2,10 @@ services:
   drupal_langgraph.path_manager:
     class: Drupal\drupal_langgraph\Service\HqPathManager
 
+  drupal_langgraph.observe_data:
+    class: Drupal\drupal_langgraph\Service\LangGraphObserveService
+    arguments: ['@drupal_langgraph.path_manager']
+
   drupal_langgraph.project_registry:
     class: Drupal\drupal_langgraph\Service\ProjectRegistryService
     arguments: ['@drupal_langgraph.path_manager']
@@ -9,3 +13,11 @@ services:
   drupal_langgraph.pipeline_status_resolver:
     class: Drupal\drupal_langgraph\Service\PipelineStatusResolver
     arguments: ['@drupal_langgraph.path_manager']
+
+  drupal_langgraph.process_flow_registry:
+    class: Drupal\drupal_langgraph\Service\ProcessFlowRegistryService
+    arguments: ['@config.factory']
+
+  drupal_langgraph.process_flow_context:
+    class: Drupal\drupal_langgraph\Service\ProcessFlowContextService
+    arguments: ['@user.data', '@current_user']
