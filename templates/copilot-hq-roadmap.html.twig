@@ -4,6 +4,14 @@
       <h1 class="mb-3">{{ title }}</h1>
       <p class="lead">{{ intro }}</p>
 
+      <div class="card mb-4">
+        <div class="card-body">
+          <h2 class="h5">How to read these roadmaps</h2>
+          <p class="mb-2">Each card combines project-registry metadata with live pipeline counts so roadmap status stays tied to execution evidence.</p>
+          <p class="small text-muted mb-0">Pipeline counts summarize shipped, active, and pending feature work for the project. Use the action buttons to open project detail or related release surfaces.</p>
+        </div>
+      </div>
+
       {% for project in projects %}
         <div class="card mb-4">
           <div class="card-body">
@@ -31,6 +39,7 @@
                 {{ project.pipeline_counts.pending }} pending
                 ({{ project.pipeline_counts.total }} total)
               </p>
+              <p class="small text-muted mb-3">Shipped means complete, active combines in-progress and queued work, and pending captures items not yet started.</p>
             {% endif %}
 
             {% if project.actions %}

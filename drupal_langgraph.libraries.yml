@@ -1,0 +1,15 @@
+flow_visualization:
+  version: 1.x
+  css:
+    theme:
+      css/flow-visualization.css: {}
+  js:
+    https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js:
+      type: external
+      minified: true
+      attributes:
+        defer: true
+    js/flow-visualization.js: {}
+  dependencies:
+    - core/drupal
+    - core/once

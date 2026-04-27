@@ -4,6 +4,14 @@
       <h1 class="mb-3">{{ title }}</h1>
       <p class="lead">{{ summary }}</p>
 
+      <div class="card mb-4">
+        <div class="card-body">
+          <h2 class="h5">How to use this project view</h2>
+          <p class="mb-2">This page combines registry metadata, current execution notes, and feature-pipeline evidence for one project.</p>
+          <p class="small text-muted mb-0">Use the roadmap fields for planning context, then compare pipeline status and feature groups to understand what is already shipped, actively moving, or still pending.</p>
+        </div>
+      </div>
+
       {% if nav_links %}
         <div class="mb-4">
           {% for link in nav_links %}
@@ -57,18 +65,19 @@
       {% endif %}
 
       {% if pipeline_counts.total > 0 %}
-        <div class="card mb-4">
-          <div class="card-body">
-            <h2 class="h5">Pipeline status</h2>
-            <p class="mb-0">
-              {{ pipeline_counts.implemented }} shipped /
-              {{ pipeline_counts.in_progress }} in progress /
-              {{ pipeline_counts.queued }} queued /
-              {{ pipeline_counts.pending }} pending
-              ({{ pipeline_counts.total }} total)
-            </p>
+          <div class="card mb-4">
+            <div class="card-body">
+              <h2 class="h5">Pipeline status</h2>
+              <p class="mb-0">
+                {{ pipeline_counts.implemented }} shipped /
+                {{ pipeline_counts.in_progress }} in progress /
+                {{ pipeline_counts.queued }} queued /
+                {{ pipeline_counts.pending }} pending
+                ({{ pipeline_counts.total }} total)
+              </p>
+              <p class="small text-muted mb-0 mt-2">These counts summarize feature execution state for the project as a whole. The grouped tables below break the same pipeline into more specific feature slices.</p>
+            </div>
           </div>
-        </div>
       {% endif %}
 
       {% if feature_groups %}

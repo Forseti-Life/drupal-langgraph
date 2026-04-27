@@ -2,6 +2,10 @@ services:
   drupal_langgraph.path_manager:
     class: Drupal\drupal_langgraph\Service\HqPathManager
 
+  drupal_langgraph.control_plane_artifacts:
+    class: Drupal\drupal_langgraph\Service\ControlPlaneArtifactService
+    arguments: ['@drupal_langgraph.path_manager', '@file_system']
+
   drupal_langgraph.observe_data:
     class: Drupal\drupal_langgraph\Service\LangGraphObserveService
     arguments: ['@drupal_langgraph.path_manager']
@@ -21,3 +25,7 @@ services:
   drupal_langgraph.process_flow_context:
     class: Drupal\drupal_langgraph\Service\ProcessFlowContextService
     arguments: ['@user.data', '@current_user']
+
+  drupal_langgraph.org_chart:
+    class: Drupal\drupal_langgraph\Service\OrgChartService
+    arguments: ['@drupal_langgraph.path_manager']

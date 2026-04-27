@@ -18,6 +18,7 @@ use Drupal\drupal_langgraph\Service\ControlPlaneArtifactService;
 use Drupal\drupal_langgraph\Service\ProcessFlowContextService;
 use Drupal\drupal_langgraph\Service\HqPathManager;
 use Drupal\drupal_langgraph\Service\LangGraphObserveService;
+use Drupal\drupal_langgraph\Service\OrgChartService;
 use Drupal\drupal_langgraph\Service\ProcessFlowRegistryService;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -31,6 +32,7 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
     private readonly ProcessFlowRegistryService $flows,
     private readonly ProcessFlowContextService $flowContext,
     private readonly ControlPlaneArtifactService $artifacts,
+    private readonly OrgChartService $orgChart,
   ) {}
 
   public static function create(ContainerInterface $container): self {
@@ -40,6 +42,7 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
       $container->get('drupal_langgraph.process_flow_registry'),
       $container->get('drupal_langgraph.process_flow_context'),
       $container->get('drupal_langgraph.control_plane_artifacts'),
+      $container->get('drupal_langgraph.org_chart'),
     );
   }
 
@@ -113,10 +116,24 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
       ],
       'help' => ['#markup' => '<p>' . $this->t('Use the flow registry to select an existing process flow or start a new draft flow definition.') . '</p>'],
     ];
-    $build['registry'] = $this->tableDetails('Process Flow Registry', ['Flow', 'Flow ID', 'Status', 'Owner', 'Version', 'Default entrypoint', 'Primary section', 'Source', 'Actions'], $this->buildFlowRegistryRows());
+    $build['registry'] = $this->tableDetails('Process Flow Registry', ['Flow', 'Flow ID', 'Status', 'Owning seat', 'Version', 'Default entrypoint', 'Primary section', 'Source', 'Actions'], $this->buildFlowRegistryRows());
     $build['command_map'] = $this->tableDetails('Command-to-Control Mapping', ['LangGraph command', 'Console control', 'Section'], $this->flows->commandControlMap());
 
     return $this->withCurrentFlowContext($build);
+  }
+
+  public function orgChart(): array {
+    $flows = $this->flows->allFlows();
+    $build = $this->buildPage('Org Chart', 'Read-only relationship map for seats, ownership, instruction layers, and flow stewardship.', [], FALSE, 'org-chart');
+    $build['summary'] = $this->tableDetails('Org Summary', ['Signal', 'Value'], $this->orgChart->summary($flows));
+    $build['instruction_model'] = $this->tableDetails('Instruction Layer Model', ['Layer', 'Source', 'Purpose'], $this->orgChart->instructionModelRows());
+    $build['flow_ownership'] = $this->tableDetails('Flow Ownership', ['Flow', 'Flow ID', 'Owning seat', 'Role', 'Supervisor', 'Status'], $this->flowOwnershipRows($flows));
+    $build['seat_registry'] = $this->tableDetails('Seat Registry', ['Seat', 'Role', 'Supervisor', 'Scope', 'Ownership context', 'Instruction coverage', 'Status'], $this->orgSeatRows());
+    foreach ($this->orgChart->seats() as $seat) {
+      $build['seat_' . $seat['id']] = $this->seatDetailsBuild($seat);
+    }
+
+    return $build;
   }
 
   public function flowDetail(string $flow_id): array {
@@ -150,7 +167,7 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
       'summary' => $this->tableDetails('Flow Summary', ['Field', 'Value'], [
         ['Flow ID', $flow['id']],
         ['Status', $flow['status']],
-        ['Owner', $flow['owner']],
+        ['Owning seat', $this->ownerSeatCell((string) ($flow['owner'] ?? ''))],
         ['Graph type', $flow['graph_type']],
         ['Primary section', $flow['primary_section']],
         ['Default entrypoint', $flow['default_entrypoint']],
@@ -753,7 +770,7 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
         ]],
         $flow['id'],
         $flow['status'],
-        $flow['owner'],
+        $this->ownerSeatCell((string) ($flow['owner'] ?? '')),
         $flow['version'],
         $flow['default_entrypoint'],
         $flow['primary_section'],
@@ -855,7 +872,7 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
         '#rows' => [
           [$this->t('Flow ID'), $current_flow['id']],
           [$this->t('Status'), $current_flow['status']],
-          [$this->t('Owner'), $current_flow['owner']],
+          [$this->t('Owning seat'), $this->ownerSeatCell((string) ($current_flow['owner'] ?? ''))],
           [$this->t('Graph type'), $current_flow['graph_type']],
           [$this->t('Default entrypoint'), $current_flow['default_entrypoint']],
           [$this->t('Primary section'), $current_flow['primary_section']],
@@ -869,6 +886,156 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
           '</p>',
       ],
     ];
+  }
+
+  private function orgSeatRows(): array {
+    $rows = [];
+    foreach ($this->orgChart->seats() as $seat) {
+      $rows[] = [
+        $this->seatAnchorCell($seat),
+        $seat['role_label'],
+        $this->ownerSeatCell((string) ($seat['supervisor'] ?? '')),
+        $seat['scope_label'],
+        $this->seatOwnershipSummary($seat),
+        $this->seatInstructionCoverageLabel($seat),
+        $this->seatStatusLabel($seat),
+      ];
+    }
+
+    return $rows;
+  }
+
+  private function flowOwnershipRows(array $flows): array {
+    $rows = [];
+    foreach ($flows as $flow) {
+      $owner = $this->orgChart->getSeat((string) ($flow['owner'] ?? ''));
+      $rows[] = [
+        $this->linkCell((string) ($flow['label'] ?? $flow['id'] ?? 'Flow'), 'drupal_langgraph.langgraph_console_flow_detail', ['flow_id' => $flow['id']]),
+        (string) ($flow['id'] ?? ''),
+        $this->ownerSeatCell((string) ($flow['owner'] ?? '')),
+        $owner['role_label'] ?? 'Unknown',
+        $this->ownerSeatCell((string) ($owner['supervisor'] ?? '')),
+        $owner !== NULL ? 'Mapped to seat' : 'Non-seat owner value',
+      ];
+    }
+
+    return $rows;
+  }
+
+  private function seatDetailsBuild(array $seat): array {
+    $build = [
+      '#type' => 'details',
+      '#title' => $this->t('@seat — @name', ['@seat' => $seat['id'], '@name' => $seat['name']]),
+      '#open' => FALSE,
+      '#attributes' => ['id' => 'seat-' . Html::getId($seat['id'])],
+      'summary' => [
+        '#type' => 'table',
+        '#header' => [$this->t('Field'), $this->t('Value')],
+        '#rows' => [
+          [$this->t('Seat ID'), $seat['id']],
+          [$this->t('Name'), $seat['name']],
+          [$this->t('Role'), $seat['role_label']],
+          [$this->t('Supervisor'), $this->ownerSeatCell((string) ($seat['supervisor'] ?? ''))],
+          [$this->t('Website scope'), $seat['scope_label']],
+          [$this->t('Status'), $this->seatStatusLabel($seat)],
+          [$this->t('Subordinates'), $seat['subordinates'] !== [] ? implode(', ', $seat['subordinates']) : '-'],
+        ],
+      ],
+      'instruction_layers' => $this->tableDetails('Instruction Layers', ['Layer', 'Applies to', 'Path', 'Status'], $this->seatInstructionRows($seat)),
+      'ownership' => $this->tableDetails('Ownership Context', ['Type', 'Label', 'Detail'], $this->seatOwnershipRows($seat)),
+    ];
+
+    if (($seat['notes'] ?? '') !== '') {
+      $build['notes'] = $this->textDetails('Seat Notes', (string) $seat['notes']);
+    }
+
+    return $build;
+  }
+
+  private function seatInstructionRows(array $seat): array {
+    $rows = [];
+    foreach ((array) ($seat['instruction_layers'] ?? []) as $layer) {
+      $rows[] = [
+        (string) ($layer['layer'] ?? ''),
+        (string) ($layer['applies_to'] ?? ''),
+        $this->toRelativePath((string) ($layer['path'] ?? '')),
+        !empty($layer['exists']) ? 'Present' : 'Missing',
+      ];
+    }
+    return $rows;
+  }
+
+  private function seatOwnershipRows(array $seat): array {
+    $rows = [];
+    foreach ((array) ($seat['ownership_context'] ?? []) as $item) {
+      $rows[] = [
+        (string) ($item['type'] ?? ''),
+        (string) ($item['label'] ?? ''),
+        (string) ($item['detail'] ?? ''),
+      ];
+    }
+
+    return $rows !== [] ? $rows : [['-', '-', 'No explicit module or repository ownership mapping found.']];
+  }
+
+  private function seatOwnershipSummary(array $seat): string {
+    $labels = array_map(static fn(array $item): string => (string) ($item['label'] ?? ''), array_slice((array) ($seat['ownership_context'] ?? []), 0, 3));
+    $labels = array_values(array_filter($labels, static fn(string $label): bool => $label !== ''));
+    if ($labels === []) {
+      return '-';
+    }
+
+    $summary = implode(', ', $labels);
+    $remaining = count((array) ($seat['ownership_context'] ?? [])) - count($labels);
+    if ($remaining > 0) {
+      $summary .= sprintf(' (+%d more)', $remaining);
+    }
+
+    return $summary;
+  }
+
+  private function seatInstructionCoverageLabel(array $seat): string {
+    $layers = (array) ($seat['instruction_layers'] ?? []);
+    if ($layers === []) {
+      return '0/0';
+    }
+
+    $present = count(array_filter($layers, static fn(array $layer): bool => !empty($layer['exists'])));
+    return sprintf('%d/%d present', $present, count($layers));
+  }
+
+  private function seatStatusLabel(array $seat): string {
+    $label = !empty($seat['paused']) ? 'Paused' : 'Active';
+    $notes = (string) ($seat['notes'] ?? '');
+    if (stripos($notes, 'deprecated') !== FALSE) {
+      $label .= ' / Deprecated';
+    }
+    return $label;
+  }
+
+  private function seatAnchorCell(array $seat): array {
+    return [
+      'data' => [
+        '#markup' => Markup::create(sprintf(
+          '<a href="#seat-%s">%s</a>',
+          Html::getId((string) ($seat['id'] ?? '')),
+          Html::escape(sprintf('%s — %s', (string) ($seat['id'] ?? ''), (string) ($seat['name'] ?? '')))
+        )),
+      ],
+    ];
+  }
+
+  private function ownerSeatCell(string $owner_id): string {
+    if ($owner_id === '') {
+      return '-';
+    }
+
+    $seat = $this->orgChart->getSeat($owner_id);
+    if ($seat === NULL) {
+      return $owner_id . ' (unknown seat)';
+    }
+
+    return sprintf('%s — %s', $seat['id'], $seat['name']);
   }
 
   private function flowActionLinksMarkup(array $flow, bool $include_open = TRUE): string {
@@ -1067,7 +1234,11 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
       ],
       'flows' => [
         ['Purpose', 'Flows is the registry of process-flow contracts known to Drupal LangGraph, including built-in flows and local overrides.'],
-        ['How it connects', 'Open a flow to move through Build, Test, Run, Observe, and Release for that specific workflow.'],
+        ['How it connects', 'Open a flow to move through Build, Test, Run, Observe, and Release for that specific workflow. Owner values now point at seat IDs that can be reviewed in Org Chart.'],
+      ],
+      'org-chart' => [
+        ['Purpose', 'Org Chart represents the seats that execute the work behind the control plane, including reporting relationships, ownership context, and layered instructions.'],
+        ['How it connects', 'Use this page to see where LangGraph flow orchestration stops and executor, seat, and instruction-driven behavior begins.'],
       ],
       'build' => [
         ['Purpose', 'Build is where authors define and inspect the flow contract: metadata, nodes, routing, tools, and prompts.'],
@@ -2324,6 +2495,14 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
 
   private function overviewLaunchpadRows(): array {
     return [
+      [
+        $this->linkCell('Org Chart', 'drupal_langgraph.langgraph_console_org_chart'),
+        'Inspect seat relationships, ownership mappings, and the instruction layers that shape runtime behavior.',
+        $this->linkCell('Open Org Chart', 'drupal_langgraph.langgraph_console_org_chart'),
+        $this->actionLinksCell([
+          ['title' => 'Flow ownership', 'route' => 'drupal_langgraph.langgraph_console_org_chart'],
+        ]),
+      ],
       [
         $this->linkCell('Flows', 'drupal_langgraph.langgraph_console_flows'),
         'Choose a process flow, inspect its workspace, or create a new draft flow.',

@@ -9,6 +9,8 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 
 final class ProcessFlowAddForm extends FormBase {
 
+  use ProcessFlowUiTextTrait;
+
   public function __construct(
     private readonly ProcessFlowRegistryService $registry,
   ) {}
@@ -24,9 +26,14 @@ final class ProcessFlowAddForm extends FormBase {
   }
 
   public function buildForm(array $form, FormStateInterface $form_state): array {
-    $form['intro'] = [
-      '#markup' => '<p>' . $this->t('Create a draft process flow entry for the Drupal LangGraph control panel. This first slice captures the console contract and lifecycle mapping before deeper graph wiring.') . '</p>',
-    ];
+    $form['intro'] = $this->formStatusMessage(
+      'Create process flow',
+      'Create a draft process flow entry for the Drupal LangGraph console.',
+      [
+        'Use Build to define structure, Test to validate it, Run to request execution, Observe to inspect behavior, and Release to manage versions.',
+        'This form captures the flow contract only; it does not execute LangGraph work by itself.',
+      ]
+    );
 
     $form['label'] = [
       '#type' => 'textfield',
@@ -53,8 +60,9 @@ final class ProcessFlowAddForm extends FormBase {
 
     $form['owner'] = [
       '#type' => 'textfield',
-      '#title' => $this->t('Owner'),
-      '#default_value' => 'drupal_langgraph',
+      '#title' => $this->t('Owner seat ID'),
+      '#default_value' => 'ceo-copilot-2',
+      '#description' => $this->ownerFieldDescription(),
       '#required' => TRUE,
     ];
 
@@ -74,6 +82,7 @@ final class ProcessFlowAddForm extends FormBase {
     $form['graph_type'] = [
       '#type' => 'select',
       '#title' => $this->t('Graph type'),
+      '#description' => $this->graphTypeFieldDescription(),
       '#options' => [
         'state_graph' => $this->t('State graph'),
         'subgraph' => $this->t('Subgraph'),
@@ -87,6 +96,7 @@ final class ProcessFlowAddForm extends FormBase {
     $form['primary_section'] = [
       '#type' => 'select',
       '#title' => $this->t('Primary console section'),
+      '#description' => $this->primarySectionFieldDescription(),
       '#options' => [
         'flows' => $this->t('Flows'),
         'build' => $this->t('Build'),
@@ -103,7 +113,7 @@ final class ProcessFlowAddForm extends FormBase {
     $form['default_entrypoint'] = [
       '#type' => 'textfield',
       '#title' => $this->t('Default entrypoint'),
-      '#description' => $this->t('The first node, command, or orchestrator entrypoint associated with this process flow.'),
+      '#description' => $this->defaultEntrypointDescription(),
       '#required' => TRUE,
     ];
 
@@ -111,6 +121,7 @@ final class ProcessFlowAddForm extends FormBase {
       '#type' => 'textfield',
       '#title' => $this->t('Initial version'),
       '#default_value' => 'draft',
+      '#description' => $this->versionFieldDescription(),
       '#required' => TRUE,
     ];
 
@@ -123,21 +134,21 @@ final class ProcessFlowAddForm extends FormBase {
     $form['architecture']['state_schema_summary'] = [
       '#type' => 'textarea',
       '#title' => $this->t('State schema summary'),
-      '#description' => $this->t('Describe the state carried between nodes and what matters operationally.'),
+      '#description' => $this->stateSchemaDescription(),
       '#rows' => 3,
     ];
 
     $form['architecture']['nodes'] = [
       '#type' => 'textarea',
       '#title' => $this->t('Nodes'),
-      '#description' => $this->t('One node per line.'),
+      '#description' => $this->nodesDescription(),
       '#rows' => 5,
     ];
 
     $form['architecture']['routing_rules'] = [
       '#type' => 'textarea',
       '#title' => $this->t('Routing rules'),
-      '#description' => $this->t('One routing rule per line.'),
+      '#description' => $this->routingRulesDescription(),
       '#rows' => 4,
     ];
 
@@ -150,29 +161,21 @@ final class ProcessFlowAddForm extends FormBase {
     $form['orchestration']['tools'] = [
       '#type' => 'checkboxes',
       '#title' => $this->t('Tools'),
-      '#options' => [
-        'drush' => $this->t('Drush'),
-        'runtime_ticks' => $this->t('Runtime tick artifacts'),
-        'feature_progress_markdown' => $this->t('Feature progress artifacts'),
-        'release_artifacts' => $this->t('Release artifacts'),
-        'trace_reader' => $this->t('Trace reader'),
-        'metric_aggregator' => $this->t('Metric aggregator'),
-        'incident_parser' => $this->t('Incident parser'),
-        'shell' => $this->t('Shell / CLI'),
-      ],
+      '#description' => $this->toolsDescription(),
+      '#options' => $this->registry->toolOptions(),
     ];
 
     $form['orchestration']['prompt_notes'] = [
       '#type' => 'textarea',
       '#title' => $this->t('Prompt notes'),
-      '#description' => $this->t('Capture system-prompt, guardrail, or orchestration notes for this process flow.'),
+      '#description' => $this->promptNotesDescription(),
       '#rows' => 4,
     ];
 
     $form['actions'] = ['#type' => 'actions'];
     $form['actions']['submit'] = [
       '#type' => 'submit',
-      '#value' => $this->t('Save process flow'),
+      '#value' => $this->t('Create process flow'),
       '#button_type' => 'primary',
     ];
 
@@ -183,6 +186,23 @@ final class ProcessFlowAddForm extends FormBase {
     $id = (string) $form_state->getValue('id');
     if ($this->flowIdExists($id)) {
       $form_state->setErrorByName('id', $this->t('A process flow with ID %id already exists.', ['%id' => $id]));
+    }
+
+    $nodes = $this->registry->parseLineList((string) $form_state->getValue('nodes'));
+    $node_duplicates = $this->registry->duplicateValues($nodes);
+    if ($node_duplicates !== []) {
+      $form_state->setErrorByName('nodes', $this->t('Node names must be unique. Duplicate values: @duplicates', ['@duplicates' => implode(', ', $node_duplicates)]));
+    }
+
+    $entrypoint = trim((string) $form_state->getValue('default_entrypoint'));
+    if (!$this->registry->entrypointMatchesNodes($entrypoint, $nodes)) {
+      $form_state->setErrorByName('default_entrypoint', $this->t('Default entrypoint must match one of the configured nodes.'));
+    }
+
+    $routing_rules = $this->registry->parseLineList((string) $form_state->getValue('routing_rules'));
+    $routing_duplicates = $this->registry->duplicateValues($routing_rules);
+    if ($routing_duplicates !== []) {
+      $form_state->setErrorByName('routing_rules', $this->t('Routing rules must be unique. Duplicate values: @duplicates', ['@duplicates' => implode(' | ', $routing_duplicates)]));
     }
   }
 
@@ -199,8 +219,8 @@ final class ProcessFlowAddForm extends FormBase {
       'version' => (string) $form_state->getValue('version'),
       'source' => 'custom',
       'state_schema_summary' => (string) $form_state->getValue('state_schema_summary'),
-      'nodes' => $this->parseLineList((string) $form_state->getValue('nodes')),
-      'routing_rules' => $this->parseLineList((string) $form_state->getValue('routing_rules')),
+      'nodes' => $this->registry->parseLineList((string) $form_state->getValue('nodes')),
+      'routing_rules' => $this->registry->parseLineList((string) $form_state->getValue('routing_rules')),
       'tools' => array_values(array_filter(array_map('strval', (array) $form_state->getValue('tools')), static fn(string $value): bool => $value !== '0' && $value !== '')),
       'prompt_notes' => (string) $form_state->getValue('prompt_notes'),
     ];
@@ -212,12 +232,6 @@ final class ProcessFlowAddForm extends FormBase {
 
   public function flowIdExists(string $flow_id): bool {
     return $flow_id !== '' && $this->registry->getFlow($flow_id) !== NULL;
-  }
-
-  private function parseLineList(string $value): array {
-    $lines = preg_split('/\R/', $value) ?: [];
-    $lines = array_map(static fn(string $line): string => trim($line), $lines);
-    return array_values(array_filter($lines, static fn(string $line): bool => $line !== ''));
   }
 
 }

@@ -29,6 +29,14 @@ final class ProcessFlowRegistryService {
     return $flows[$flow_id] ?? NULL;
   }
 
+  public function isCustomFlow(array $flow): bool {
+    return in_array((string) ($flow['source'] ?? ''), ['custom', 'custom_override'], TRUE);
+  }
+
+  public function canArchiveFlow(array $flow): bool {
+    return $this->isCustomFlow($flow) && (string) ($flow['status'] ?? '') !== 'archived';
+  }
+
   public function saveFlow(array $flow): void {
     $config = $this->configFactory->getEditable(self::CONFIG_NAME);
     $flows = $config->get('flows');
@@ -39,6 +47,18 @@ final class ProcessFlowRegistryService {
 
     usort($flows, static fn(array $a, array $b): int => strcmp((string) ($a['label'] ?? ''), (string) ($b['label'] ?? '')));
     $config->set('flows', $flows)->save();
+  }
+
+  public function archiveFlow(string $flow_id): ?array {
+    $flow = $this->getFlow($flow_id);
+    if ($flow === NULL || !$this->canArchiveFlow($flow)) {
+      return NULL;
+    }
+
+    $flow['status'] = 'archived';
+    $this->saveFlow($flow);
+
+    return $flow;
   }
 
   public function commandControlMap(): array {
@@ -61,13 +81,54 @@ final class ProcessFlowRegistryService {
     ];
   }
 
+  public function toolOptions(): array {
+    return [
+      'drush' => 'Drush',
+      'shell' => 'Shell / CLI',
+      'hq_artifacts' => 'HQ artifacts',
+      'runtime_ticks' => 'Runtime tick artifacts',
+      'agent_selection' => 'Agent selection state',
+      'publish_contract' => 'Publish contract',
+      'feature_progress_markdown' => 'Feature progress artifacts',
+      'release_artifacts' => 'Release artifacts',
+      'signoff_discovery' => 'Signoff discovery',
+      'flow_registry' => 'Flow registry',
+      'ownership_map' => 'Ownership map',
+      'trace_reader' => 'Trace reader',
+      'metric_aggregator' => 'Metric aggregator',
+      'incident_parser' => 'Incident parser',
+    ];
+  }
+
+  public function parseLineList(string $value): array {
+    $lines = preg_split('/\R/', $value) ?: [];
+    $lines = array_map(static fn(string $line): string => trim($line), $lines);
+    return array_values(array_filter($lines, static fn(string $line): bool => $line !== ''));
+  }
+
+  public function duplicateValues(array $values): array {
+    $counts = array_count_values($values);
+    return array_values(array_map('strval', array_keys(array_filter($counts, static fn(int $count): bool => $count > 1))));
+  }
+
+  public function entrypointMatchesNodes(string $entrypoint, array $nodes): bool {
+    $entrypoint = trim($entrypoint);
+    $nodes = array_values(array_filter(array_map('strval', $nodes), static fn(string $value): bool => $value !== ''));
+    return $entrypoint === '' || $nodes === [] || in_array($entrypoint, $nodes, TRUE);
+  }
+
+  public function unknownTools(array $tools): array {
+    $tools = array_values(array_filter(array_map('strval', $tools), static fn(string $value): bool => $value !== ''));
+    return array_values(array_diff($tools, array_keys($this->toolOptions())));
+  }
+
   private function builtInFlows(): array {
     return [
       [
         'id' => 'hq_orchestrator_tick',
         'label' => 'HQ Orchestrator Tick',
         'description' => 'Primary LangGraph control-plane flow that coordinates the HQ tick pipeline and worker selection.',
-        'owner' => 'drupal_langgraph',
+        'owner' => 'ceo-copilot-2',
         'status' => 'active',
         'graph_type' => 'state_graph',
         'primary_section' => 'run',
@@ -84,7 +145,7 @@ final class ProcessFlowRegistryService {
         'id' => 'release_cycle_automation',
         'label' => 'Release Cycle Automation',
         'description' => 'Release orchestration flow that tracks current and next release markers, evidence, and signoff readiness.',
-        'owner' => 'drupal_langgraph',
+        'owner' => 'ceo-copilot-2',
         'status' => 'active',
         'graph_type' => 'subgraph',
         'primary_section' => 'release',
@@ -101,7 +162,7 @@ final class ProcessFlowRegistryService {
         'id' => 'feature_progress_pipeline',
         'label' => 'Feature Progress Pipeline',
         'description' => 'Workflow that materializes feature progress and provides the read-only snapshot used across the console.',
-        'owner' => 'drupal_langgraph',
+        'owner' => 'ceo-copilot-2',
         'status' => 'active',
         'graph_type' => 'subgraph',
         'primary_section' => 'observe',
@@ -118,7 +179,7 @@ final class ProcessFlowRegistryService {
         'id' => 'runtime_observability',
         'label' => 'Runtime Observability',
         'description' => 'Observability workflow for traces, metrics, anomalies, blocked work, and incident signals.',
-        'owner' => 'drupal_langgraph',
+        'owner' => 'ceo-copilot-2',
         'status' => 'active',
         'graph_type' => 'supervisor_graph',
         'primary_section' => 'observe',
@@ -143,7 +204,7 @@ final class ProcessFlowRegistryService {
         'id' => (string) ($flow['id'] ?? ''),
         'label' => (string) ($flow['label'] ?? ''),
         'description' => (string) ($flow['description'] ?? ''),
-        'owner' => (string) ($flow['owner'] ?? 'drupal_langgraph'),
+        'owner' => (string) ($flow['owner'] ?? 'ceo-copilot-2'),
         'status' => (string) ($flow['status'] ?? 'draft'),
         'graph_type' => (string) ($flow['graph_type'] ?? 'state_graph'),
         'primary_section' => (string) ($flow['primary_section'] ?? 'build'),

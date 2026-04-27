@@ -19,7 +19,7 @@ drupal_langgraph.process_flows:
             label: 'Description'
           owner:
             type: string
-            label: 'Owner'
+            label: 'Owner seat ID'
           status:
             type: string
             label: 'Status'

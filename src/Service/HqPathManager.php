@@ -33,10 +33,18 @@ final class HqPathManager {
       }
     }
 
+    $best_candidate = NULL;
+    $best_score = -1;
     foreach ($this->runtimeRootCandidates($forseti_root) as $candidate) {
-      if (is_dir($candidate)) {
-        return rtrim($candidate, '/');
+      $score = $this->runtimeRootScore($candidate);
+      if ($score > $best_score) {
+        $best_candidate = $candidate;
+        $best_score = $score;
       }
+    }
+
+    if ($best_candidate !== NULL && $best_score > 0) {
+      return rtrim($best_candidate, '/');
     }
 
     return $forseti_root;
@@ -72,6 +80,7 @@ final class HqPathManager {
       'feature_progress' => $this->resolveForseti('dashboards/FEATURE_PROGRESS.md'),
       'langgraph_runbook' => $this->resolveForseti('dashboards/LANGGRAPH_CONTROL_PLANE_RUNBOOK.md'),
       'org_roadmap' => $this->resolveForseti('ROADMAP.md'),
+      'control_requests_dir' => $this->resolveForseti('tmp/langgraph-control-requests'),
       'sessions_dir' => $this->resolveForseti('sessions'),
     ];
   }
@@ -92,6 +101,32 @@ final class HqPathManager {
     }
 
     return $candidates;
+  }
+
+  private function runtimeRootScore(string $candidate): int {
+    if (!is_dir($candidate)) {
+      return 0;
+    }
+
+    $candidate = rtrim($candidate, '/');
+    $score = 1;
+    $artifacts = [
+      $candidate . '/inbox/responses/langgraph-ticks.jsonl' => 100,
+      $candidate . '/inbox/responses/langgraph-parity-latest.json' => 25,
+      $candidate . '/inbox/responses/orchestrator-latest.log' => 10,
+    ];
+
+    foreach ($artifacts as $path => $weight) {
+      if (is_readable($path)) {
+        $score += $weight;
+        $mtime = @filemtime($path);
+        if ($mtime !== FALSE) {
+          $score += (int) floor($mtime / 3600);
+        }
+      }
+    }
+
+    return $score;
   }
 
 }

@@ -20,7 +20,9 @@ authoritative HQ files from the filesystem.
   - `/roadmap/{project_id}`
 - **Admin LangGraph console**
   - `/admin/reports/drupal-langgraph/langgraph-console`
+  - `/admin/reports/drupal-langgraph/langgraph-console/org-chart`
   - build / test / run / observe / release / admin subsections
+  - org chart view for seat hierarchy, ownership mappings, and instruction layers
   - Observe subsections: traces, metrics, drift, alerts, feature-progress
   - compatibility-facing aliases under `/admin/reports/drupal-langgraph/langgraph/*`
   - release evidence / release troubleshooting parity sourced from HQ session artifacts
@@ -55,7 +57,26 @@ From those roots the module expects:
 
 1. `drupal_langgraph` owns the restored live roadmap surface.
 2. `forseti-copilot-agent-tracker` remains enabled only as a compatibility shim for legacy admin URLs.
-3. Remaining work is additive feature parity and richer admin reporting, not module-boundary cutover.
+3. The module now includes flow authoring, runtime/replay/promotion control artifacts, and admin governance views; remaining work is incremental UX and feature maturity, not module-boundary cutover.
+4. Built-in flow ownership now uses real seat IDs (for example `ceo-copilot-2`) instead of generic labels, and the Org Chart page exposes how seats, reporting lines, ownership files, and instruction layers connect to the control plane.
+
+## Operator UX posture
+
+- Console pages now include workspace-level guidance so operators can understand
+  what each page is for and how it connects to neighboring sections.
+- Process-flow forms use shared help text for authoring, runtime control,
+  replay, and release actions so the module explains consequences before users
+  write artifacts.
+- Flow lifecycle remains intentionally split:
+  - **Build** owns the editable flow contract
+  - **Test** validates authored structure
+  - **Run** records execution controls
+  - **Observe** reads runtime evidence
+  - **Release** captures and promotes versions
+- Org structure is now visible in the module:
+  - **Org Chart** maps seats from `org-chart/agents/agents.yaml`
+  - flow owners are rendered as seat relationships
+  - instruction layers are represented as `org-wide -> role -> site/product -> seat`
 
 ## Runtime activation notes
 

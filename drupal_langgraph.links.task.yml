@@ -10,38 +10,50 @@ drupal_langgraph.langgraph_console_flows_tab:
   base_route: drupal_langgraph.langgraph_console_home
   weight: 1
 
-drupal_langgraph.langgraph_console_build_tab:
-  route_name: drupal_langgraph.langgraph_console_build
-  title: 'Build'
+drupal_langgraph.langgraph_console_org_chart_tab:
+  route_name: drupal_langgraph.langgraph_console_org_chart
+  title: 'Org Chart'
   base_route: drupal_langgraph.langgraph_console_home
   weight: 2
-
-drupal_langgraph.langgraph_console_test_tab:
-  route_name: drupal_langgraph.langgraph_console_test
-  title: 'Test'
-  base_route: drupal_langgraph.langgraph_console_home
-  weight: 3
-
-drupal_langgraph.langgraph_console_run_tab:
-  route_name: drupal_langgraph.langgraph_console_run
-  title: 'Run'
-  base_route: drupal_langgraph.langgraph_console_home
-  weight: 4
-
-drupal_langgraph.langgraph_console_observe_tab:
-  route_name: drupal_langgraph.langgraph_console_observe
-  title: 'Observe'
-  base_route: drupal_langgraph.langgraph_console_home
-  weight: 5
-
-drupal_langgraph.langgraph_console_release_tab:
-  route_name: drupal_langgraph.langgraph_console_release
-  title: 'Release'
-  base_route: drupal_langgraph.langgraph_console_home
-  weight: 6
 
 drupal_langgraph.langgraph_console_admin_tab:
   route_name: drupal_langgraph.langgraph_console_admin
   title: 'Admin'
   base_route: drupal_langgraph.langgraph_console_home
-  weight: 7
+  weight: 3
+
+drupal_langgraph.langgraph_console_flow_overview_tab:
+  route_name: drupal_langgraph.langgraph_console_flow_detail
+  title: 'Overview'
+  base_route: drupal_langgraph.langgraph_console_flow_detail
+  weight: 0
+
+drupal_langgraph.langgraph_console_flow_build_tab:
+  route_name: drupal_langgraph.langgraph_console_flow_build
+  title: 'Build'
+  base_route: drupal_langgraph.langgraph_console_flow_detail
+  weight: 1
+
+drupal_langgraph.langgraph_console_flow_test_tab:
+  route_name: drupal_langgraph.langgraph_console_flow_test
+  title: 'Test'
+  base_route: drupal_langgraph.langgraph_console_flow_detail
+  weight: 2
+
+drupal_langgraph.langgraph_console_flow_run_tab:
+  route_name: drupal_langgraph.langgraph_console_flow_run
+  title: 'Run'
+  base_route: drupal_langgraph.langgraph_console_flow_detail
+  weight: 3
+
+drupal_langgraph.langgraph_console_flow_observe_tab:
+  route_name: drupal_langgraph.langgraph_console_flow_observe
+  title: 'Observe'
+  base_route: drupal_langgraph.langgraph_console_flow_detail
+  weight: 4
+
+drupal_langgraph.langgraph_console_flow_release_tab:
+  route_name: drupal_langgraph.langgraph_console_flow_release
+  title: 'Release'
+  base_route: drupal_langgraph.langgraph_console_flow_detail
+  weight: 5

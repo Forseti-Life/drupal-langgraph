@@ -34,6 +34,14 @@ drupal_langgraph.langgraph_console_flows:
   requirements:
     _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
 
+drupal_langgraph.langgraph_console_org_chart:
+  path: '/admin/reports/drupal-langgraph/langgraph-console/org-chart'
+  defaults:
+    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::orgChart'
+    _title: 'Org Chart'
+  requirements:
+    _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
+
 drupal_langgraph.langgraph_console_flow_add:
   path: '/admin/reports/drupal-langgraph/langgraph-console/flows/add'
   defaults:
@@ -50,6 +58,71 @@ drupal_langgraph.langgraph_console_flow_detail:
   requirements:
     _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
     flow_id: '[a-z0-9_]+'
+
+drupal_langgraph.langgraph_console_flow_archive:
+  path: '/admin/reports/drupal-langgraph/langgraph-console/flows/{flow_id}/archive'
+  defaults:
+    _form: '\Drupal\drupal_langgraph\Form\ProcessFlowArchiveForm'
+    _title: 'Archive Process Flow'
+  requirements:
+    _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
+    flow_id: '[a-z0-9_]+'
+
+drupal_langgraph.langgraph_console_flow_build:
+  path: '/admin/reports/drupal-langgraph/langgraph-console/flows/{flow_id}/build'
+  defaults:
+    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::flowBuild'
+    _title: 'Build'
+  requirements:
+    _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
+    flow_id: '[a-z0-9_]+'
+
+drupal_langgraph.langgraph_console_flow_test:
+  path: '/admin/reports/drupal-langgraph/langgraph-console/flows/{flow_id}/test'
+  defaults:
+    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::flowTest'
+    _title: 'Test'
+  requirements:
+    _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
+    flow_id: '[a-z0-9_]+'
+
+drupal_langgraph.langgraph_console_flow_run:
+  path: '/admin/reports/drupal-langgraph/langgraph-console/flows/{flow_id}/run'
+  defaults:
+    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::flowRun'
+    _title: 'Run'
+  requirements:
+    _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
+    flow_id: '[a-z0-9_]+'
+
+drupal_langgraph.langgraph_console_flow_observe:
+  path: '/admin/reports/drupal-langgraph/langgraph-console/flows/{flow_id}/observe'
+  defaults:
+    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::flowObserve'
+    _title: 'Observe'
+  requirements:
+    _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
+    flow_id: '[a-z0-9_]+'
+
+drupal_langgraph.langgraph_console_flow_release:
+  path: '/admin/reports/drupal-langgraph/langgraph-console/flows/{flow_id}/release'
+  defaults:
+    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::flowRelease'
+    _title: 'Release'
+  requirements:
+    _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
+    flow_id: '[a-z0-9_]+'
+
+drupal_langgraph.langgraph_console_flow_workspace_subsection:
+  path: '/admin/reports/drupal-langgraph/langgraph-console/flows/{flow_id}/{section}/{subsection}'
+  defaults:
+    _controller: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::flowWorkspaceSubsection'
+    _title: 'Workspace'
+  requirements:
+    _custom_access: '\Drupal\drupal_langgraph\Controller\LangGraphConsoleController::adminAccess'
+    flow_id: '[a-z0-9_]+'
+    section: 'build|test|run|observe|release'
+    subsection: '[a-z0-9-]+'
 
 drupal_langgraph.langgraph_home:
   path: '/admin/reports/drupal-langgraph/langgraph'
