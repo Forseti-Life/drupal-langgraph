@@ -10,11 +10,13 @@ final class ProcessFlowRegistryService {
 
   public function __construct(
     private readonly ConfigFactoryInterface $configFactory,
+    private readonly HqPathManager $paths,
   ) {}
 
   public function allFlows(): array {
     $flows = [];
-    foreach (array_merge($this->builtInFlows(), $this->customFlows()) as $flow) {
+    $base_flows = array_merge($this->builtInFlows(), $this->runtimeDerivedFlows());
+    foreach (array_merge($base_flows, $this->customFlows($base_flows)) as $flow) {
       $flows[$flow['id']] = $flow;
     }
 
@@ -142,6 +144,72 @@ final class ProcessFlowRegistryService {
         'prompt_notes' => 'Primary orchestration prompt must preserve deterministic control-plane ordering and auditable step results.',
       ],
       [
+        'id' => 'agentic_sdlc',
+        'label' => 'Agentic SDLC',
+        'description' => 'Reference SDLC graph imported from the external LangGraph example, with design approval fanning out into parallel implementation and test-case authoring, an explicit readiness merge before QA, and review or QA failures routing directly back to the originating authoring step.',
+        'owner' => 'architect-copilot',
+        'status' => 'active',
+        'graph_type' => 'state_graph',
+        'primary_section' => 'build',
+        'default_entrypoint' => 'User Requirements',
+        'version' => 'reference-import',
+        'source' => 'built-in',
+        'state_schema_summary' => 'State carries requirements, user stories, design, code, reviews, security findings, test cases, QA readiness, QA results, and revision feedback through gated loops, including parallel code-and-test authoring after design approval, an explicit merge before QA, and direct rejection loops back to the authoring nodes.',
+        'nodes' => [
+          'User Requirements',
+          'Auto-generate User Stories',
+          'Product Owner Review',
+          'Create Design Document',
+          'Revise User Stories',
+          'Revise Design Document',
+          'Design Review',
+          'Generate Code',
+          'Write Test Cases',
+          'Code Review',
+          'Security Review',
+          'Test Cases Review',
+          'Ready for QA',
+          'QA Testing',
+        ],
+        'routing_rules' => [
+          'Product owner, design, code, security, and test-review stages branch on Approved versus Changes requested.',
+          'Design approval starts code generation and test-case writing in parallel.',
+          'QA begins only after both the security-approved code branch and the approved test-case branch meet at Ready for QA.',
+          'Code review and security review reject directly back to Generate Code instead of introducing separate remediation nodes.',
+          'Test case review rejects directly back to Write Test Cases instead of introducing a separate remediation node.',
+          'QA failures route directly back to Generate Code, Write Test Cases, or both depending on what changed.',
+          'Each feedback branch loops back into the appropriate revise-or-author stage before re-entering the main line.',
+          'QA pass exits the graph at END.',
+        ],
+        'tools' => ['flow_registry'],
+        'prompt_notes' => 'Render this flow with explicit conditional transitions so approval gates, the post-design parallel implementation/test branch, the Ready for QA merge, and the direct rejection loops back into the originating authoring steps stay visible.',
+        'transitions' => [
+          ['from_node' => 'User Requirements', 'to_node' => 'Auto-generate User Stories', 'kind' => 'direct', 'condition' => ''],
+          ['from_node' => 'Auto-generate User Stories', 'to_node' => 'Product Owner Review', 'kind' => 'direct', 'condition' => ''],
+          ['from_node' => 'Product Owner Review', 'to_node' => 'Create Design Document', 'kind' => 'conditional', 'condition' => 'Approved'],
+          ['from_node' => 'Product Owner Review', 'to_node' => 'Revise User Stories', 'kind' => 'conditional', 'condition' => 'Changes requested'],
+          ['from_node' => 'Revise User Stories', 'to_node' => 'Auto-generate User Stories', 'kind' => 'direct', 'condition' => ''],
+          ['from_node' => 'Create Design Document', 'to_node' => 'Design Review', 'kind' => 'direct', 'condition' => ''],
+          ['from_node' => 'Design Review', 'to_node' => 'Generate Code', 'kind' => 'conditional', 'condition' => 'Approved'],
+          ['from_node' => 'Design Review', 'to_node' => 'Write Test Cases', 'kind' => 'conditional', 'condition' => 'Approved'],
+          ['from_node' => 'Design Review', 'to_node' => 'Revise Design Document', 'kind' => 'conditional', 'condition' => 'Changes requested'],
+          ['from_node' => 'Revise Design Document', 'to_node' => 'Design Review', 'kind' => 'direct', 'condition' => ''],
+          ['from_node' => 'Generate Code', 'to_node' => 'Code Review', 'kind' => 'direct', 'condition' => ''],
+          ['from_node' => 'Code Review', 'to_node' => 'Security Review', 'kind' => 'conditional', 'condition' => 'Approved'],
+          ['from_node' => 'Code Review', 'to_node' => 'Generate Code', 'kind' => 'conditional', 'condition' => 'Changes requested'],
+          ['from_node' => 'Security Review', 'to_node' => 'Ready for QA', 'kind' => 'conditional', 'condition' => 'Approved'],
+          ['from_node' => 'Security Review', 'to_node' => 'Generate Code', 'kind' => 'conditional', 'condition' => 'Changes requested'],
+          ['from_node' => 'Write Test Cases', 'to_node' => 'Test Cases Review', 'kind' => 'direct', 'condition' => ''],
+          ['from_node' => 'Test Cases Review', 'to_node' => 'Ready for QA', 'kind' => 'conditional', 'condition' => 'Approved'],
+          ['from_node' => 'Test Cases Review', 'to_node' => 'Write Test Cases', 'kind' => 'conditional', 'condition' => 'Changes requested'],
+          ['from_node' => 'Ready for QA', 'to_node' => 'QA Testing', 'kind' => 'direct', 'condition' => ''],
+          ['from_node' => 'QA Testing', 'to_node' => 'END', 'kind' => 'conditional', 'condition' => 'Passed'],
+          ['from_node' => 'QA Testing', 'to_node' => 'Generate Code', 'kind' => 'conditional', 'condition' => 'Failed - code changes required'],
+          ['from_node' => 'QA Testing', 'to_node' => 'Write Test Cases', 'kind' => 'conditional', 'condition' => 'Failed - test changes required'],
+        ],
+        'node_breakdown' => $this->agenticSdlcNodeBreakdown(),
+      ],
+      [
         'id' => 'release_cycle_automation',
         'label' => 'Release Cycle Automation',
         'description' => 'Release orchestration flow that tracks current and next release markers, evidence, and signoff readiness.',
@@ -195,29 +263,162 @@ final class ProcessFlowRegistryService {
     ];
   }
 
-  private function customFlows(): array {
+  private function customFlows(array $base_flows = []): array {
     $flows = $this->configFactory->get(self::CONFIG_NAME)->get('flows');
     $flows = is_array($flows) ? $flows : [];
+    $defaults_by_id = [];
+    foreach ($base_flows as $flow) {
+      if (is_array($flow) && isset($flow['id'])) {
+        $defaults_by_id[(string) $flow['id']] = $flow;
+      }
+    }
 
-    return array_map(function (array $flow): array {
-      return [
-        'id' => (string) ($flow['id'] ?? ''),
-        'label' => (string) ($flow['label'] ?? ''),
-        'description' => (string) ($flow['description'] ?? ''),
-        'owner' => (string) ($flow['owner'] ?? 'ceo-copilot-2'),
-        'status' => (string) ($flow['status'] ?? 'draft'),
-        'graph_type' => (string) ($flow['graph_type'] ?? 'state_graph'),
-        'primary_section' => (string) ($flow['primary_section'] ?? 'build'),
-        'default_entrypoint' => (string) ($flow['default_entrypoint'] ?? ''),
-        'version' => (string) ($flow['version'] ?? 'draft'),
-        'source' => (string) ($flow['source'] ?? 'custom'),
-        'state_schema_summary' => (string) ($flow['state_schema_summary'] ?? ''),
-        'nodes' => array_values(array_filter(array_map('strval', (array) ($flow['nodes'] ?? [])), static fn(string $value): bool => $value !== '')),
-        'routing_rules' => array_values(array_filter(array_map('strval', (array) ($flow['routing_rules'] ?? [])), static fn(string $value): bool => $value !== '')),
-        'tools' => array_values(array_filter(array_map('strval', (array) ($flow['tools'] ?? [])), static fn(string $value): bool => $value !== '')),
-        'prompt_notes' => (string) ($flow['prompt_notes'] ?? ''),
-      ];
+    return array_map(function (array $flow) use ($defaults_by_id): array {
+      $defaults = $defaults_by_id[(string) ($flow['id'] ?? '')] ?? [];
+      return $this->normalizeFlow($flow, $defaults, 'custom');
     }, $flows);
+  }
+
+  private function runtimeDerivedFlows(): array {
+    $script = $this->paths->artifactPaths()['graph_catalog_export'] ?? '';
+    if ($script === '' || !is_readable($script)) {
+      return [];
+    }
+
+    $command = 'python3 ' . escapeshellarg($script) . ' 2>/dev/null';
+    $output = shell_exec($command);
+    if (!is_string($output) || trim($output) === '') {
+      return [];
+    }
+
+    $data = json_decode($output, TRUE);
+    if (!is_array($data)) {
+      return [];
+    }
+
+    $flows = $data['flows'] ?? [];
+    if (!is_array($flows)) {
+      return [];
+    }
+
+    return array_map(
+      fn(array $flow): array => $this->normalizeFlow($flow, [], 'runtime_graph'),
+      array_values(array_filter($flows, static fn(mixed $flow): bool => is_array($flow)))
+    );
+  }
+
+  private function agenticSdlcNodeBreakdown(): array {
+    return [
+      [
+        'parent_node' => 'User Requirements',
+        'internal_step' => 'Capture the user problem',
+        'purpose' => 'Define the request, constraints, and acceptance target that the SDLC run must satisfy.',
+        'state_effect' => 'Seeds the flow state with the initial requirements and problem framing.',
+      ],
+      [
+        'parent_node' => 'Auto-generate User Stories',
+        'internal_step' => 'Translate requirements into stories',
+        'purpose' => 'Convert the raw request into implementable user stories and candidate acceptance slices.',
+        'state_effect' => 'Adds structured user stories and draft delivery scope to the working state.',
+      ],
+      [
+        'parent_node' => 'Product Owner Review',
+        'internal_step' => 'Approve or request story revisions',
+        'purpose' => 'Validate that the generated stories match the intended product outcome before design begins.',
+        'state_effect' => 'Branches the state toward design on approval or back to story revision when changes are requested.',
+      ],
+      [
+        'parent_node' => 'Create Design Document',
+        'internal_step' => 'Draft the technical design',
+        'purpose' => 'Shape the architecture, interfaces, and implementation approach for the approved stories.',
+        'state_effect' => 'Adds a design artifact that downstream review and implementation nodes can evaluate.',
+      ],
+      [
+        'parent_node' => 'Revise User Stories',
+        'internal_step' => 'Incorporate product feedback',
+        'purpose' => 'Refine the generated stories when product review finds mismatches or missing scope.',
+        'state_effect' => 'Updates the story set, then loops back into story generation and review.',
+      ],
+      [
+        'parent_node' => 'Revise Design Document',
+        'internal_step' => 'Refine the proposed design',
+        'purpose' => 'Address design review feedback before implementation work is allowed to start.',
+        'state_effect' => 'Mutates the design artifact and sends the flow back through design review.',
+      ],
+      [
+        'parent_node' => 'Design Review',
+        'internal_step' => 'Gate design approval',
+        'purpose' => 'Confirm the design is implementation-ready and determine whether work can branch into build and test authoring.',
+        'state_effect' => 'Either loops back for design changes or fans out into parallel code and test-case tracks.',
+      ],
+      [
+        'parent_node' => 'Generate Code',
+        'internal_step' => 'Implement the design',
+        'purpose' => 'Produce the initial code change set for the approved design branch.',
+        'state_effect' => 'Adds implementation output that moves into code review.',
+      ],
+      [
+        'parent_node' => 'Write Test Cases',
+        'internal_step' => 'Author verification coverage',
+        'purpose' => 'Create test cases in parallel with coding so QA has a concrete validation plan before merge readiness.',
+        'state_effect' => 'Adds test definitions that move into test-case review.',
+      ],
+      [
+        'parent_node' => 'Code Review',
+        'internal_step' => 'Review implementation quality',
+        'purpose' => 'Check the generated code for correctness and design alignment before security review.',
+        'state_effect' => 'Either advances the code branch to security review or rejects it back to Generate Code for revision by the originator.',
+      ],
+      [
+        'parent_node' => 'Security Review',
+        'internal_step' => 'Evaluate security posture',
+        'purpose' => 'Inspect the implementation for abuse paths, unsafe behavior, and unmet security expectations.',
+        'state_effect' => 'Either approves the code branch into the QA readiness merge or rejects it back to Generate Code for revision by the originator.',
+      ],
+      [
+        'parent_node' => 'Test Cases Review',
+        'internal_step' => 'Review test design',
+        'purpose' => 'Check that authored tests cover the intended behavior and edge cases before QA relies on them.',
+        'state_effect' => 'Either approves the test branch into the QA readiness merge or rejects it back to Write Test Cases for revision by the originator.',
+      ],
+      [
+        'parent_node' => 'Ready for QA',
+        'internal_step' => 'Merge approved delivery branches',
+        'purpose' => 'Represent the explicit readiness gate where both the approved code branch and the approved test branch are required before QA begins.',
+        'state_effect' => 'Waits for both approved branches, then hands the combined delivery package into QA Testing.',
+      ],
+      [
+        'parent_node' => 'QA Testing',
+        'internal_step' => 'Run integrated validation',
+        'purpose' => 'Validate the approved code and approved test artifacts together as the final pre-release gate.',
+        'state_effect' => 'Either exits the graph on pass or routes failures directly back to Generate Code, Write Test Cases, or both depending on what QA found.',
+      ],
+    ];
+  }
+
+  private function normalizeFlow(array $flow, array $defaults = [], string $default_source = 'built-in'): array {
+    $list = static fn(array $source, string $key, array $fallback = []): array => array_values(array_filter(array_map('strval', (array) ($source[$key] ?? $fallback)), static fn(string $value): bool => $value !== ''));
+    $records = static fn(array $source, string $key, array $fallback = []): array => array_values(array_filter((array) ($source[$key] ?? $fallback), static fn(mixed $item): bool => is_array($item)));
+
+    return [
+      'id' => (string) ($flow['id'] ?? $defaults['id'] ?? ''),
+      'label' => (string) ($flow['label'] ?? $defaults['label'] ?? ''),
+      'description' => (string) ($flow['description'] ?? $defaults['description'] ?? ''),
+      'owner' => (string) ($flow['owner'] ?? $defaults['owner'] ?? 'ceo-copilot-2'),
+      'status' => (string) ($flow['status'] ?? $defaults['status'] ?? 'draft'),
+      'graph_type' => (string) ($flow['graph_type'] ?? $defaults['graph_type'] ?? 'state_graph'),
+      'primary_section' => (string) ($flow['primary_section'] ?? $defaults['primary_section'] ?? 'build'),
+      'default_entrypoint' => (string) ($flow['default_entrypoint'] ?? $defaults['default_entrypoint'] ?? ''),
+      'version' => (string) ($flow['version'] ?? $defaults['version'] ?? 'draft'),
+      'source' => (string) ($flow['source'] ?? $defaults['source'] ?? $default_source),
+      'state_schema_summary' => (string) ($flow['state_schema_summary'] ?? $defaults['state_schema_summary'] ?? ''),
+      'nodes' => $list($flow, 'nodes', (array) ($defaults['nodes'] ?? [])),
+      'routing_rules' => $list($flow, 'routing_rules', (array) ($defaults['routing_rules'] ?? [])),
+      'tools' => $list($flow, 'tools', (array) ($defaults['tools'] ?? [])),
+      'prompt_notes' => (string) ($flow['prompt_notes'] ?? $defaults['prompt_notes'] ?? ''),
+      'node_breakdown' => $records($flow, 'node_breakdown', (array) ($defaults['node_breakdown'] ?? [])),
+      'transitions' => $records($flow, 'transitions', (array) ($defaults['transitions'] ?? [])),
+    ];
   }
 
 }

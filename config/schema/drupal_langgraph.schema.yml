@@ -59,3 +59,39 @@ drupal_langgraph.process_flows:
           prompt_notes:
             type: text
             label: 'Prompt notes'
+          node_breakdown:
+            type: sequence
+            label: 'Detailed node breakdown'
+            sequence:
+              type: mapping
+              mapping:
+                parent_node:
+                  type: string
+                  label: 'Parent node'
+                internal_step:
+                  type: string
+                  label: 'Internal step'
+                purpose:
+                  type: text
+                  label: 'Purpose'
+                state_effect:
+                  type: text
+                  label: 'State effect'
+          transitions:
+            type: sequence
+            label: 'Directed transitions'
+            sequence:
+              type: mapping
+              mapping:
+                from_node:
+                  type: string
+                  label: 'From node'
+                to_node:
+                  type: string
+                  label: 'To node'
+                kind:
+                  type: string
+                  label: 'Transition kind'
+                condition:
+                  type: string
+                  label: 'Condition / label'

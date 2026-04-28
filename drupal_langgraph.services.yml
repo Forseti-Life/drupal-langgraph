@@ -20,7 +20,7 @@ services:
 
   drupal_langgraph.process_flow_registry:
     class: Drupal\drupal_langgraph\Service\ProcessFlowRegistryService
-    arguments: ['@config.factory']
+    arguments: ['@config.factory', '@drupal_langgraph.path_manager']
 
   drupal_langgraph.process_flow_context:
     class: Drupal\drupal_langgraph\Service\ProcessFlowContextService

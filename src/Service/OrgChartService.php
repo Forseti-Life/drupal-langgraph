@@ -29,6 +29,10 @@ final class OrgChartService {
         continue;
       }
 
+      if (!$this->includeInOrgChart($agent)) {
+        continue;
+      }
+
       $seat_id = trim((string) ($agent['id'] ?? ''));
       if ($seat_id === '') {
         continue;
@@ -148,6 +152,21 @@ final class OrgChartService {
       ['Distinct site scopes', (string) count($sites)],
       ['Flows with non-seat owner values', (string) $flow_owner_gaps],
     ];
+  }
+
+  private function includeInOrgChart(array $agent): bool {
+    $seat_id = trim((string) ($agent['id'] ?? ''));
+    if ($seat_id === '') {
+      return FALSE;
+    }
+
+    $role = (string) ($agent['role'] ?? '');
+    $notes = (string) ($agent['notes'] ?? '');
+    if ($role === 'ceo' && stripos($notes, 'DEPRECATED') !== FALSE) {
+      return FALSE;
+    }
+
+    return TRUE;
   }
 
   private function instructionLayersForSeat(string $seat_id, string $role, array $website_scope): array {

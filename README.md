@@ -23,7 +23,7 @@ authoritative HQ files from the filesystem.
   - `/admin/reports/drupal-langgraph/langgraph-console/org-chart`
   - build / test / run / observe / release / admin subsections
   - org chart view for seat hierarchy, ownership mappings, and instruction layers
-  - Chart.js hierarchy diagram with Board as the root and click-to-expand seat branches
+  - Chart.js hierarchy diagram with Board as the root, a clustered CEO layer for readability, node drill-in to seat details, and in-node expand/collapse controls for manager branches
   - Observe subsections: traces, metrics, drift, alerts, feature-progress
   - compatibility-facing aliases under `/admin/reports/drupal-langgraph/langgraph/*`
   - release evidence / release troubleshooting parity sourced from HQ session artifacts
@@ -76,8 +76,10 @@ From those roots the module expects:
   - **Release** captures and promotes versions
 - Org structure is now visible in the module:
   - **Org Chart** maps seats from `org-chart/agents/agents.yaml`
+  - the CEO first layer is clustered in the diagram so product leads, shared capabilities, executive extensions, and paused seats do not render as one flat row
   - flow owners are rendered as seat relationships
   - instruction layers are represented as `org-wide -> role -> site/product -> seat`
+  - diagram node clicks open the matching seat detail panel without leaving the page
 
 ## Runtime activation notes
 

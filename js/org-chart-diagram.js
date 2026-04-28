@@ -7,6 +7,8 @@
   const LEVEL_GAP = 128;
   const PADDING_X = 48;
   const PADDING_Y = 36;
+  const ACTION_HEIGHT = 18;
+  const ACTION_MARGIN = 8;
 
   function buildHierarchy(nodes) {
     const byId = new Map();
@@ -117,6 +119,9 @@
     if (point.id === 'board') {
       return { fill: '#111827', stroke: '#111827', text: '#ffffff', subtitle: '#d1d5db' };
     }
+    if (point.isGroup) {
+      return { fill: '#f8fafc', stroke: '#475569', text: '#0f172a', subtitle: '#475569' };
+    }
     if (point.paused) {
       return { fill: '#f3f4f6', stroke: '#94a3b8', text: '#334155', subtitle: '#64748b' };
     }
@@ -170,6 +175,96 @@
     return lines.length;
   }
 
+  function nodeDimensions(point) {
+    return point.id === 'board'
+      ? { width: ROOT_NODE_WIDTH, height: ROOT_NODE_HEIGHT }
+      : { width: NODE_WIDTH, height: NODE_HEIGHT };
+  }
+
+  function nodeBounds(point, scales) {
+    const { width, height } = nodeDimensions(point);
+    const x = scales.x.getPixelForValue(point.x);
+    const y = scales.y.getPixelForValue(point.y);
+    return {
+      x,
+      y,
+      width,
+      height,
+      left: x - (width / 2),
+      top: y - (height / 2),
+      right: x + (width / 2),
+      bottom: y + (height / 2)
+    };
+  }
+
+  function toggleBounds(point, box) {
+    if (point.id === 'board' || !point.children || !point.children.length) {
+      return null;
+    }
+
+    const width = Math.min(box.width - 28, 104);
+    const left = box.x - (width / 2);
+    const top = box.bottom - ACTION_HEIGHT - ACTION_MARGIN;
+    return {
+      left,
+      top,
+      right: left + width,
+      bottom: top + ACTION_HEIGHT,
+      width,
+      height: ACTION_HEIGHT
+    };
+  }
+
+  function pointContains(box, x, y) {
+    return x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
+  }
+
+  function eventCanvasPosition(event, canvas) {
+    const nativeEvent = event && event.native ? event.native : event;
+    if (!nativeEvent || typeof nativeEvent.clientX !== 'number' || typeof nativeEvent.clientY !== 'number') {
+      return null;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: nativeEvent.clientX - rect.left,
+      y: nativeEvent.clientY - rect.top
+    };
+  }
+
+  function focusSeatDetails(detailId) {
+    if (!detailId) {
+      return;
+    }
+
+    const details = document.getElementById(detailId);
+    if (!details) {
+      return;
+    }
+
+    details.open = true;
+    details.classList.remove('drupal-langgraph-seat-detail--active');
+    void details.offsetWidth;
+    details.classList.add('drupal-langgraph-seat-detail--active');
+
+    if (details._drupalLanggraphHighlightTimer) {
+      window.clearTimeout(details._drupalLanggraphHighlightTimer);
+    }
+    details._drupalLanggraphHighlightTimer = window.setTimeout(() => {
+      details.classList.remove('drupal-langgraph-seat-detail--active');
+    }, 1800);
+
+    const summary = details.querySelector('summary');
+    details.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (summary && typeof summary.focus === 'function') {
+      window.setTimeout(() => summary.focus({ preventScroll: true }), 120);
+    }
+
+    if (window.history && typeof window.history.replaceState === 'function') {
+      window.history.replaceState(null, '', `#${detailId}`);
+    }
+  }
+
   const orgChartPlugin = {
     id: 'drupalLanggraphOrgChart',
     beforeDatasetsDraw(chart, args, options) {
@@ -221,30 +316,38 @@
 
       layout.points.forEach((point) => {
         const colors = nodeColors(point);
-        const x = scales.x.getPixelForValue(point.x);
-        const y = scales.y.getPixelForValue(point.y);
-        const width = point.id === 'board' ? ROOT_NODE_WIDTH : NODE_WIDTH;
-        const height = point.id === 'board' ? ROOT_NODE_HEIGHT : NODE_HEIGHT;
-        const left = x - (width / 2);
-        const top = y - (height / 2);
-        const toggleHint = point.children && point.children.length
-          ? (options.collapsed.includes(point.id) ? 'Expand' : 'Collapse')
-          : '';
+        const box = nodeBounds(point, scales);
+        const toggle = toggleBounds(point, box);
 
-        drawRoundedRect(ctx, left, top, width, height, 14);
+        drawRoundedRect(ctx, box.left, box.top, box.width, box.height, 14);
         ctx.fillStyle = colors.fill;
         ctx.strokeStyle = colors.stroke;
         ctx.lineWidth = 2;
         ctx.fill();
         ctx.stroke();
 
-        const labelLines = drawWrappedText(ctx, point.label, x, top + 22, width - 18, 16, '600 12px sans-serif', colors.text);
-        const subtitle = point.id === 'board'
-          ? point.subtitle
-          : `${point.subtitle}${toggleHint ? ` • ${toggleHint}` : ''}`;
+        const labelLines = drawWrappedText(ctx, point.label, box.x, box.top + 22, box.width - 18, 16, '600 12px sans-serif', colors.text);
         ctx.font = '11px sans-serif';
         ctx.fillStyle = colors.subtitle;
-        ctx.fillText(subtitle, x, top + 24 + (labelLines * 15));
+        ctx.fillText(point.subtitle, box.x, box.top + 24 + (labelLines * 15));
+
+        if (toggle) {
+          drawRoundedRect(ctx, toggle.left, toggle.top, toggle.width, toggle.height, 9);
+          ctx.fillStyle = options.collapsed.includes(point.id) ? '#eff6ff' : '#e2e8f0';
+          ctx.strokeStyle = options.collapsed.includes(point.id) ? '#2563eb' : '#94a3b8';
+          ctx.lineWidth = 1.5;
+          ctx.fill();
+          ctx.stroke();
+          ctx.font = '600 10px sans-serif';
+          ctx.fillStyle = options.collapsed.includes(point.id) ? '#1d4ed8' : '#334155';
+          ctx.fillText(
+            options.collapsed.includes(point.id)
+              ? (point.isGroup ? 'Expand group' : 'Expand team')
+              : (point.isGroup ? 'Collapse group' : 'Collapse team'),
+            box.x,
+            toggle.top + (toggle.height / 2) + 0.5
+          );
+        }
       });
 
       ctx.restore();
@@ -329,7 +432,13 @@
                   callbacks: {
                     label(item) {
                       const raw = item.raw || {};
-                      return `${raw.label || raw.id} (${raw.subtitle || ''})`;
+                      if (raw.isGroup) {
+                        return `${raw.label || raw.id} (${raw.subtitle || ''}) — use chip to expand or collapse this CEO cluster`;
+                      }
+                      if (raw.children && raw.children.length) {
+                        return `${raw.label || raw.id} (${raw.subtitle || ''}) — click node for details, chip for team toggle`;
+                      }
+                      return `${raw.label || raw.id} (${raw.subtitle || ''}) — click for details`;
                     }
                   }
                 },
@@ -357,17 +466,31 @@
                 }
 
                 const raw = chartInstance.data.datasets[0].data[matches[0].index];
-                if (!raw || !raw.children || !raw.children.length || raw.id === 'board') {
+                if (!raw || raw.id === 'board') {
                   return;
                 }
 
-                if (collapsed.has(raw.id)) {
-                  collapsed.delete(raw.id);
+                const clickPosition = eventCanvasPosition(event, chartInstance.canvas);
+                const layoutPoint = chartInstance.options.plugins.drupalLanggraphOrgChart.layout.byPointId.get(raw.id);
+                if (!layoutPoint || !clickPosition) {
+                  focusSeatDetails(raw.detailId);
+                  return;
                 }
-                else {
-                  collapsed.add(raw.id);
+
+                const box = nodeBounds(layoutPoint, chartInstance.scales);
+                const toggle = toggleBounds(layoutPoint, box);
+                if (toggle && pointContains(toggle, clickPosition.x, clickPosition.y)) {
+                  if (collapsed.has(raw.id)) {
+                    collapsed.delete(raw.id);
+                  }
+                  else {
+                    collapsed.add(raw.id);
+                  }
+                  render();
+                  return;
                 }
-                render();
+
+                focusSeatDetails(raw.detailId);
               }
             },
             plugins: [orgChartPlugin]

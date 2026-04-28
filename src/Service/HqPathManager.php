@@ -77,6 +77,7 @@ final class HqPathManager {
       'org_control_legacy' => $this->resolveForseti('tmp/org-control.json'),
       'org_control_default' => '/var/tmp/copilot-sessions-hq/org-control.json',
       'graph_definition' => $this->resolveForseti('orchestrator/langgraph/graph.py'),
+      'graph_catalog_export' => $this->resolveForseti('orchestrator/runtime_graph/export_flow_catalog.py'),
       'feature_progress' => $this->resolveForseti('dashboards/FEATURE_PROGRESS.md'),
       'langgraph_runbook' => $this->resolveForseti('dashboards/LANGGRAPH_CONTROL_PLANE_RUNBOOK.md'),
       'org_roadmap' => $this->resolveForseti('ROADMAP.md'),

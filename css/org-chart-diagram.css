@@ -18,3 +18,13 @@
   width: 100%;
   min-height: 20rem;
 }
+
+.drupal-langgraph-seat-detail {
+  scroll-margin-top: 1rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.drupal-langgraph-seat-detail--active {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+}

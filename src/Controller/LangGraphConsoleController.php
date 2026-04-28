@@ -142,7 +142,7 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
       '#type' => 'container',
       '#attributes' => ['class' => ['drupal-langgraph-org-chart']],
       'help' => [
-        '#markup' => '<p>' . $this->t('Hierarchy overview of the org execution model. Board is the synthetic root. Click a seat node in the diagram to expand or collapse its subordinate branch.') . '</p>',
+        '#markup' => '<p>' . $this->t('Hierarchy overview of the org execution model. Board is the synthetic root. The CEO layer is clustered into product leads, shared capabilities, executive extensions, and paused seats so the chart stays readable without changing the underlying reporting lines. Click a seat node to open its detail panel below. For seats with subordinates, use the Expand/Collapse chip inside the node to toggle that branch.') . '</p>',
       ],
       'canvas_wrapper' => [
         '#type' => 'container',
@@ -181,6 +181,7 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
         'roleWeight' => 0,
       ],
     ];
+    $cluster_nodes = [];
 
     foreach ($seats as $seat) {
       $supervisor = (string) ($seat['supervisor'] ?? '');
@@ -189,10 +190,35 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
         $parent = 'board';
       }
 
+      if ($parent === 'ceo-copilot-2') {
+        $cluster_id = $this->orgChartClusterIdForSeat($seat);
+        if ($cluster_id !== NULL) {
+          $cluster_definition = $this->orgChartClusterDefinition($cluster_id);
+          if (!isset($cluster_nodes[$cluster_id])) {
+            $cluster_nodes[$cluster_id] = [
+              'id' => $cluster_id,
+              'label' => $cluster_definition['label'],
+              'subtitle' => '',
+              'detailId' => NULL,
+              'role' => 'cluster',
+              'parent' => 'ceo-copilot-2',
+              'paused' => FALSE,
+              'roleWeight' => $cluster_definition['roleWeight'],
+              'isGroup' => TRUE,
+              'collapsedByDefault' => $cluster_definition['collapsedByDefault'],
+              'seatCount' => 0,
+            ];
+          }
+          $cluster_nodes[$cluster_id]['seatCount']++;
+          $parent = $cluster_id;
+        }
+      }
+
       $nodes[] = [
         'id' => $seat['id'],
         'label' => $seat['name'],
         'subtitle' => $seat['id'],
+        'detailId' => $this->seatDetailDomId($seat),
         'role' => $seat['role_label'],
         'parent' => $parent,
         'paused' => (bool) $seat['paused'],
@@ -200,31 +226,41 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
       ];
     }
 
+    foreach ($cluster_nodes as &$cluster_node) {
+      $count = (int) ($cluster_node['seatCount'] ?? 0);
+      $cluster_node['subtitle'] = $this->formatPlural($count, '1 seat', '@count seats');
+      unset($cluster_node['seatCount']);
+      $nodes[] = $cluster_node;
+    }
+    unset($cluster_node);
+
     return [
       'nodes' => $nodes,
-      'initialCollapsed' => $this->orgChartInitialCollapsed($seats),
+      'initialCollapsed' => $this->orgChartInitialCollapsed($nodes),
     ];
   }
 
-  private function orgChartInitialCollapsed(array $seats): array {
+  private function orgChartInitialCollapsed(array $nodes): array {
     $children = [];
-    foreach ($seats as $seat) {
-      $supervisor = (string) ($seat['supervisor'] ?? '');
-      $parent = ($supervisor !== '' && isset($seats[$supervisor])) ? $supervisor : 'board';
-      if ($supervisor === 'board') {
-        $parent = 'board';
+    $collapsed = [];
+    foreach ($nodes as $node) {
+      $parent = (string) ($node['parent'] ?? '');
+      if ($parent !== '') {
+        $children[$parent][] = (string) ($node['id'] ?? '');
       }
-      $children[$parent][] = $seat['id'];
+      if (!empty($node['collapsedByDefault'])) {
+        $collapsed[] = (string) ($node['id'] ?? '');
+      }
     }
 
-    $expanded = ['board', 'ceo-copilot-2'];
-    $collapsed = [];
+    $expanded = ['board', 'ceo-copilot-2', 'ceo-cluster-products', 'ceo-cluster-executive'];
     foreach (array_keys($children) as $parent_id) {
-      if (!in_array($parent_id, $expanded, TRUE)) {
+      if (!in_array($parent_id, $expanded, TRUE) && !in_array($parent_id, $collapsed, TRUE)) {
         $collapsed[] = $parent_id;
       }
     }
 
+    $collapsed = array_values(array_unique(array_filter($collapsed, static fn(string $id): bool => $id !== '')));
     sort($collapsed);
     return $collapsed;
   }
@@ -240,6 +276,62 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
       'security-analyst' => 7,
       'accountant' => 8,
       default => 9,
+    };
+  }
+
+  private function orgChartClusterIdForSeat(array $seat): ?string {
+    if (!empty($seat['paused'])) {
+      return 'ceo-cluster-paused';
+    }
+
+    $seat_id = (string) ($seat['id'] ?? '');
+    $role = (string) ($seat['role'] ?? '');
+    if ($role === 'ceo') {
+      return 'ceo-cluster-executive';
+    }
+
+    if (in_array($role, ['product-manager', 'project-manager', 'accountant'], TRUE)) {
+      return 'ceo-cluster-products';
+    }
+
+    if (
+      str_starts_with($seat_id, 'agent-')
+      || str_starts_with($seat_id, 'sec-analyst')
+      || in_array($role, ['tester', 'software-developer', 'security-analyst'], TRUE)
+    ) {
+      return 'ceo-cluster-capabilities';
+    }
+
+    return 'ceo-cluster-executive';
+  }
+
+  private function orgChartClusterDefinition(string $cluster_id): array {
+    return match ($cluster_id) {
+      'ceo-cluster-products' => [
+        'label' => 'Product leads',
+        'roleWeight' => 2,
+        'collapsedByDefault' => FALSE,
+      ],
+      'ceo-cluster-capabilities' => [
+        'label' => 'Shared capabilities',
+        'roleWeight' => 3,
+        'collapsedByDefault' => TRUE,
+      ],
+      'ceo-cluster-executive' => [
+        'label' => 'Executive extensions',
+        'roleWeight' => 1,
+        'collapsedByDefault' => FALSE,
+      ],
+      'ceo-cluster-paused' => [
+        'label' => 'Paused seats',
+        'roleWeight' => 4,
+        'collapsedByDefault' => TRUE,
+      ],
+      default => [
+        'label' => 'Other CEO reports',
+        'roleWeight' => 9,
+        'collapsedByDefault' => FALSE,
+      ],
     };
   }
 
@@ -288,6 +380,8 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
         ['Tools', isset($flow['tools']) && $flow['tools'] !== [] ? implode(', ', $flow['tools']) : '-'],
         ['Prompt notes', $flow['prompt_notes'] !== '' ? $flow['prompt_notes'] : '-'],
       ]),
+      'transitions' => $this->tableDetails('Directed Transitions', ['From', 'To', 'Kind', 'Condition'], $this->flowTransitionRows($flow)),
+      'node_breakdown' => $this->tableDetails('Detailed Node Breakdown', ['Parent node', 'Internal step', 'Purpose', 'State / effect'], $this->flowNodeBreakdownRows($flow)),
       'how_to_use' => $this->tableDetails('How to Use This Workspace', ['Topic', 'Guidance'], $this->flowWorkspaceOverviewGuidanceRows()),
       'version_state' => $this->tableDetails('Version & Promotion State', ['Field', 'Value'], $this->promotionStateRows($flow)),
       'version_history' => $this->tableDetails('Version Snapshots', $this->versionSnapshotHeaders(), $this->flowVersionRows($flow['id'])),
@@ -1034,7 +1128,10 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
       '#type' => 'details',
       '#title' => $this->t('@seat — @name', ['@seat' => $seat['id'], '@name' => $seat['name']]),
       '#open' => FALSE,
-      '#attributes' => ['id' => 'seat-' . Html::getId($seat['id'])],
+      '#attributes' => [
+        'id' => $this->seatDetailDomId($seat),
+        'class' => ['drupal-langgraph-seat-detail'],
+      ],
       'summary' => [
         '#type' => 'table',
         '#header' => [$this->t('Field'), $this->t('Value')],
@@ -1070,6 +1167,40 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
       ];
     }
     return $rows;
+  }
+
+  private function flowNodeBreakdownRows(array $flow): array {
+    $rows = [];
+    foreach ((array) ($flow['node_breakdown'] ?? []) as $item) {
+      if (!is_array($item)) {
+        continue;
+      }
+      $rows[] = [
+        (string) ($item['parent_node'] ?? '-'),
+        (string) ($item['internal_step'] ?? '-'),
+        (string) ($item['purpose'] ?? '-'),
+        (string) ($item['state_effect'] ?? '-'),
+      ];
+    }
+
+    return $rows !== [] ? $rows : [['-', '-', 'No nested node breakdown is defined for this flow yet.', '-']];
+  }
+
+  private function flowTransitionRows(array $flow): array {
+    $rows = [];
+    foreach ((array) ($flow['transitions'] ?? []) as $transition) {
+      if (!is_array($transition)) {
+        continue;
+      }
+      $rows[] = [
+        (string) ($transition['from_node'] ?? '-'),
+        (string) ($transition['to_node'] ?? '-'),
+        (string) ($transition['kind'] ?? 'direct'),
+        (string) ($transition['condition'] ?? '-'),
+      ];
+    }
+
+    return $rows !== [] ? $rows : [['-', '-', 'direct', 'No explicit transitions modeled; Mermaid falls back to sequential node order.']];
   }
 
   private function seatOwnershipRows(array $seat): array {
@@ -1130,6 +1261,10 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
         )),
       ],
     ];
+  }
+
+  private function seatDetailDomId(array $seat): string {
+    return 'seat-' . Html::getId((string) ($seat['id'] ?? ''));
   }
 
   private function ownerSeatCell(string $owner_id): string {
@@ -1534,11 +1669,16 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
 
   private function flowVisualizationContextRows(array $flow): array {
     $nodes = array_values(array_filter(array_map('strval', (array) ($flow['nodes'] ?? [])), static fn(string $value): bool => $value !== ''));
+    $transitions = array_values(array_filter((array) ($flow['transitions'] ?? []), static fn(mixed $item): bool => is_array($item)));
     $primary_section = (string) ($flow['primary_section'] ?? '');
     $entrypoint = trim((string) ($flow['default_entrypoint'] ?? ''));
     $rows = [
       ['Modeled executable nodes', $nodes !== [] ? implode(' -> ', $nodes) : 'No nodes configured'],
     ];
+
+    if ($transitions !== []) {
+      $rows[] = ['Modeled directed transitions', (string) count($transitions)];
+    }
 
     if ($primary_section !== '' && isset($this->flowWorkspaceMap()[$primary_section]['controls'])) {
       $control_titles = array_map(static fn(array $control): string => (string) ($control['title'] ?? ''), $this->flowWorkspaceMap()[$primary_section]['controls']);
@@ -1671,10 +1811,12 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
   private function flowMermaidDefinition(array $flow): string {
     $nodes = array_values(array_filter(array_map('strval', (array) ($flow['nodes'] ?? [])), static fn(string $value): bool => $value !== ''));
     $tools = array_values(array_filter(array_map('strval', (array) ($flow['tools'] ?? [])), static fn(string $value): bool => $value !== ''));
+    $transitions = array_values(array_filter((array) ($flow['transitions'] ?? []), static fn(mixed $item): bool => is_array($item)));
     $entrypoint = trim((string) ($flow['default_entrypoint'] ?? ''));
     $owner = (string) ($flow['owner'] ?? 'unassigned');
     $tool_options = $this->flows->toolOptions();
     $child_flows = $this->childFlowsFor($flow);
+    $decision_nodes = $this->flowDecisionNodes($transitions);
     $lines = ['flowchart LR'];
 
     if ($nodes === []) {
@@ -1716,7 +1858,25 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
 
       $node_id = $this->mermaidId('node_' . $index . '_' . $node);
       $node_paths[$node] = ['first' => $node_id, 'last' => $node_id];
-      $lines[] = '  ' . $node_id . '["' . $this->mermaidLabel($node) . '"]';
+      if (in_array($node, $decision_nodes, TRUE)) {
+        $lines[] = '  ' . $node_id . '{"' . $this->mermaidLabel($node) . '"}';
+      }
+      else {
+        $lines[] = '  ' . $node_id . '["' . $this->mermaidLabel($node) . '"]';
+      }
+    }
+
+    foreach ($transitions as $transition) {
+      if (!is_array($transition)) {
+        continue;
+      }
+      $to_node = (string) ($transition['to_node'] ?? '');
+      if (!in_array($to_node, ['END', '__end__'], TRUE) || isset($node_paths[$to_node])) {
+        continue;
+      }
+      $end_id = $this->mermaidId('terminal_' . $to_node);
+      $node_paths[$to_node] = ['first' => $end_id, 'last' => $end_id];
+      $lines[] = '  ' . $end_id . '(["END"])';
     }
 
     $first_path = reset($node_paths);
@@ -1725,17 +1885,32 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
       $lines[] = '  ' . $owner_id . ' -. owns .-> ' . $first_node_id;
     }
 
-    $prior_id = NULL;
-    foreach ($nodes as $node) {
-      $node_id = $node_paths[$node]['first'] ?? NULL;
-      $node_last_id = $node_paths[$node]['last'] ?? $node_id;
-      if (!is_string($node_id) || $node_id === '') {
-        continue;
+    if ($transitions !== []) {
+      foreach ($transitions as $transition) {
+        $from_node = (string) ($transition['from_node'] ?? '');
+        $to_node = (string) ($transition['to_node'] ?? '');
+        $condition = trim((string) ($transition['condition'] ?? ''));
+        $from_id = $node_paths[$from_node]['last'] ?? NULL;
+        $to_id = $node_paths[$to_node]['first'] ?? NULL;
+        if (!is_string($from_id) || $from_id === '' || !is_string($to_id) || $to_id === '') {
+          continue;
+        }
+        $lines[] = '  ' . $from_id . ' -->' . ($condition !== '' ? '|' . $this->mermaidLabel($condition) . '|' : '') . ' ' . $to_id;
       }
-      if ($prior_id !== NULL) {
-        $lines[] = '  ' . $prior_id . ' --> ' . $node_id;
+    }
+    else {
+      $prior_id = NULL;
+      foreach ($nodes as $node) {
+        $node_id = $node_paths[$node]['first'] ?? NULL;
+        $node_last_id = $node_paths[$node]['last'] ?? $node_id;
+        if (!is_string($node_id) || $node_id === '') {
+          continue;
+        }
+        if ($prior_id !== NULL) {
+          $lines[] = '  ' . $prior_id . ' --> ' . $node_id;
+        }
+        $prior_id = is_string($node_last_id) ? $node_last_id : $node_id;
       }
-      $prior_id = is_string($node_last_id) ? $node_last_id : $node_id;
     }
 
     if ($entrypoint !== '') {
@@ -1763,11 +1938,49 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
     }
 
     $lines[] = '  classDef entrypoint fill:#dcfce7,stroke:#15803d,stroke-width:3px,color:#14532d;';
+    $lines[] = '  classDef decision fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#78350f;';
     $lines[] = '  classDef tool fill:#dbeafe,stroke:#2563eb,color:#1e3a8a;';
     $lines[] = '  classDef owner fill:#fef3c7,stroke:#d97706,color:#78350f;';
     $lines[] = '  class ' . $owner_id . ' owner;';
+    if ($decision_nodes !== []) {
+      $decision_ids = [];
+      foreach ($decision_nodes as $node) {
+        if (isset($node_paths[$node]['first'])) {
+          $decision_ids[] = $node_paths[$node]['first'];
+        }
+      }
+      if ($decision_ids !== []) {
+        $lines[] = '  class ' . implode(',', $decision_ids) . ' decision;';
+      }
+    }
 
     return implode("\n", $lines);
+  }
+
+  private function flowDecisionNodes(array $transitions): array {
+    $outgoing_counts = [];
+    $decision_nodes = [];
+    foreach ($transitions as $transition) {
+      if (!is_array($transition)) {
+        continue;
+      }
+      $from_node = (string) ($transition['from_node'] ?? '');
+      if ($from_node === '') {
+        continue;
+      }
+      $outgoing_counts[$from_node] = ($outgoing_counts[$from_node] ?? 0) + 1;
+      if (trim((string) ($transition['condition'] ?? '')) !== '') {
+        $decision_nodes[$from_node] = TRUE;
+      }
+    }
+
+    foreach ($outgoing_counts as $node => $count) {
+      if ($count > 1) {
+        $decision_nodes[$node] = TRUE;
+      }
+    }
+
+    return array_values(array_map('strval', array_keys($decision_nodes)));
   }
 
   private function mermaidId(string $value): string {
