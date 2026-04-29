@@ -71,6 +71,15 @@ drupal_langgraph.process_flows:
                 internal_step:
                   type: string
                   label: 'Internal step'
+                owner_seat:
+                  type: string
+                  label: 'Owner seat ID'
+                owner_binding:
+                  type: string
+                  label: 'Owner binding'
+                handoff_flow_id:
+                  type: string
+                  label: 'Downstream handoff flow ID'
                 purpose:
                   type: text
                   label: 'Purpose'

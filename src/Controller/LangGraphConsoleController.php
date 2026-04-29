@@ -125,35 +125,82 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
   public function orgChart(): array {
     $flows = $this->flows->allFlows();
     $build = $this->buildPage('Org Chart', 'Read-only relationship map for seats, ownership, instruction layers, and flow stewardship.', [], FALSE, 'org-chart');
-    $build['diagram'] = $this->orgChartDiagramSection();
-    $build['summary'] = $this->tableDetails('Org Summary', ['Signal', 'Value'], $this->orgChart->summary($flows));
-    $build['instruction_model'] = $this->tableDetails('Instruction Layer Model', ['Layer', 'Source', 'Purpose'], $this->orgChart->instructionModelRows());
-    $build['flow_ownership'] = $this->tableDetails('Flow Ownership', ['Flow', 'Flow ID', 'Owning seat', 'Role', 'Supervisor', 'Status'], $this->flowOwnershipRows($flows));
-    $build['seat_registry'] = $this->tableDetails('Seat Registry', ['Seat', 'Role', 'Supervisor', 'Scope', 'Ownership context', 'Instruction coverage', 'Status'], $this->orgSeatRows());
+    $content = [
+      '#type' => 'container',
+      '#attributes' => ['class' => ['drupal-langgraph-org-chart-layout__content']],
+      'summary' => $this->tableDetails('Org Summary', ['Signal', 'Value'], $this->orgChart->summary($flows)),
+      'instruction_model' => $this->tableDetails('Instruction Layer Model', ['Layer', 'Source', 'Purpose'], $this->orgChart->instructionModelRows()),
+      'flow_ownership' => $this->tableDetails('Flow Ownership', ['Flow', 'Flow ID', 'Owning seat', 'Role', 'Supervisor', 'Status'], $this->flowOwnershipRows($flows)),
+      'seat_registry' => $this->tableDetails('Seat Registry', ['Seat', 'Role', 'Supervisor', 'Scope', 'Ownership context', 'Instruction coverage', 'Status'], $this->orgSeatRows()),
+    ];
     foreach ($this->orgChart->seats() as $seat) {
-      $build['seat_' . $seat['id']] = $this->seatDetailsBuild($seat);
+      $content['seat_' . $seat['id']] = $this->seatDetailsBuild($seat);
     }
+
+    $build['layout'] = [
+      '#type' => 'container',
+      '#attributes' => ['class' => ['drupal-langgraph-org-chart-layout']],
+      'sidebar' => [
+        '#type' => 'container',
+        '#attributes' => ['class' => ['drupal-langgraph-org-chart-layout__sidebar']],
+        'diagram' => $this->orgChartDiagramSection(),
+      ],
+      'content' => $content,
+    ];
 
     return $build;
   }
 
   private function orgChartDiagramSection(): array {
     return [
-      '#type' => 'container',
-      '#attributes' => ['class' => ['drupal-langgraph-org-chart']],
-      'help' => [
-        '#markup' => '<p>' . $this->t('Hierarchy overview of the org execution model. Board is the synthetic root. The CEO layer is clustered into product leads, shared capabilities, executive extensions, and paused seats so the chart stays readable without changing the underlying reporting lines. Click a seat node to open its detail panel below. For seats with subordinates, use the Expand/Collapse chip inside the node to toggle that branch.') . '</p>',
+      '#type' => 'html_tag',
+      '#tag' => 'details',
+      '#attributes' => [
+        'class' => ['drupal-langgraph-org-chart', 'drupal-langgraph-org-chart--drawer'],
       ],
-      'canvas_wrapper' => [
-        '#type' => 'container',
-        '#attributes' => ['class' => ['drupal-langgraph-org-chart__canvas-wrapper']],
-        'canvas' => [
+      'summary' => [
+        '#type' => 'html_tag',
+        '#tag' => 'summary',
+        '#attributes' => ['class' => ['drupal-langgraph-org-chart__toggle']],
+        'icon' => [
           '#type' => 'html_tag',
-          '#tag' => 'canvas',
+          '#tag' => 'span',
           '#attributes' => [
-            'class' => ['drupal-langgraph-org-chart__canvas'],
-            'aria-label' => $this->t('Org chart hierarchy diagram'),
-            'role' => 'img',
+            'class' => ['drupal-langgraph-org-chart__toggle-icon'],
+            'aria-hidden' => 'true',
+          ],
+          '#value' => 'OC',
+        ],
+        'label' => [
+          '#type' => 'html_tag',
+          '#tag' => 'span',
+          '#attributes' => ['class' => ['drupal-langgraph-org-chart__toggle-label']],
+          '#value' => (string) $this->t('Org Chart'),
+        ],
+        'hint' => [
+          '#type' => 'html_tag',
+          '#tag' => 'span',
+          '#attributes' => ['class' => ['drupal-langgraph-org-chart__toggle-hint']],
+          '#value' => (string) $this->t('Fold out'),
+        ],
+      ],
+      'body' => [
+        '#type' => 'container',
+        '#attributes' => ['class' => ['drupal-langgraph-org-chart__body']],
+        'help' => [
+          '#markup' => '<p>' . $this->t('Hierarchy overview of the org execution model. Board is the synthetic root. The CEO layer is clustered into product leads, shared capabilities, executive extensions, and paused seats so the chart stays readable without changing the underlying reporting lines. Click a seat node to open its detail panel to the right. For seats with subordinates, use the Expand/Collapse chip inside the node to toggle that branch.') . '</p>',
+        ],
+        'canvas_wrapper' => [
+          '#type' => 'container',
+          '#attributes' => ['class' => ['drupal-langgraph-org-chart__canvas-wrapper']],
+          'canvas' => [
+            '#type' => 'html_tag',
+            '#tag' => 'canvas',
+            '#attributes' => [
+              'class' => ['drupal-langgraph-org-chart__canvas'],
+              'aria-label' => $this->t('Org chart hierarchy diagram'),
+              'role' => 'img',
+            ],
           ],
         ],
       ],
@@ -380,8 +427,10 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
         ['Tools', isset($flow['tools']) && $flow['tools'] !== [] ? implode(', ', $flow['tools']) : '-'],
         ['Prompt notes', $flow['prompt_notes'] !== '' ? $flow['prompt_notes'] : '-'],
       ]),
+      'phases' => $this->tableDetails('Phase Summary', ['Phase', 'Nodes', 'Meaning'], $this->flowPhaseSummaryRows($flow)),
+      'lanes' => $this->tableDetails('Execution Lanes', ['Lane', 'Nodes before join', 'Owning seats / bindings', 'Join behavior'], $this->flowExecutionLaneRows($flow)),
       'transitions' => $this->tableDetails('Directed Transitions', ['From', 'To', 'Kind', 'Condition'], $this->flowTransitionRows($flow)),
-      'node_breakdown' => $this->tableDetails('Detailed Node Breakdown', ['Parent node', 'Internal step', 'Purpose', 'State / effect'], $this->flowNodeBreakdownRows($flow)),
+      'node_breakdown' => $this->tableDetails('Detailed Node Breakdown', ['Parent node', 'Internal step', 'Owning seat / binding', 'Purpose', 'State / effect'], $this->flowNodeBreakdownRows($flow)),
       'how_to_use' => $this->tableDetails('How to Use This Workspace', ['Topic', 'Guidance'], $this->flowWorkspaceOverviewGuidanceRows()),
       'version_state' => $this->tableDetails('Version & Promotion State', ['Field', 'Value'], $this->promotionStateRows($flow)),
       'version_history' => $this->tableDetails('Version Snapshots', $this->versionSnapshotHeaders(), $this->flowVersionRows($flow['id'])),
@@ -1178,12 +1227,13 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
       $rows[] = [
         (string) ($item['parent_node'] ?? '-'),
         (string) ($item['internal_step'] ?? '-'),
+        $this->nodeOwnerCell((string) ($item['owner_seat'] ?? ''), (string) ($item['owner_binding'] ?? '')),
         (string) ($item['purpose'] ?? '-'),
         (string) ($item['state_effect'] ?? '-'),
       ];
     }
 
-    return $rows !== [] ? $rows : [['-', '-', 'No nested node breakdown is defined for this flow yet.', '-']];
+    return $rows !== [] ? $rows : [['-', '-', '-', 'No nested node breakdown is defined for this flow yet.', '-']];
   }
 
   private function flowTransitionRows(array $flow): array {
@@ -1278,6 +1328,20 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
     }
 
     return sprintf('%s — %s', $seat['id'], $seat['name']);
+  }
+
+  private function nodeOwnerCell(string $owner_id, string $owner_binding = ''): string {
+    $owner_id = trim($owner_id);
+    if ($owner_id !== '') {
+      return $this->ownerSeatCell($owner_id);
+    }
+
+    $owner_binding = trim($owner_binding);
+    if ($owner_binding === '') {
+      return '-';
+    }
+
+    return 'Dynamic — ' . $this->ownerBindingLabel($owner_binding);
   }
 
   private function flowActionLinksMarkup(array $flow, bool $include_open = TRUE): string {
@@ -1680,6 +1744,13 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
       $rows[] = ['Modeled directed transitions', (string) count($transitions)];
     }
 
+    $parallel_structure = $this->flowPrimaryParallelStructure($flow);
+    if ($parallel_structure !== []) {
+      $rows[] = ['Primary forward split', (string) ($parallel_structure['split'] ?? '-')];
+      $rows[] = ['Primary forward merge', (string) ($parallel_structure['merge'] ?? '-')];
+      $rows[] = ['Parallel lane count', (string) count((array) ($parallel_structure['lanes'] ?? []))];
+    }
+
     if ($primary_section !== '' && isset($this->flowWorkspaceMap()[$primary_section]['controls'])) {
       $control_titles = array_map(static fn(array $control): string => (string) ($control['title'] ?? ''), $this->flowWorkspaceMap()[$primary_section]['controls']);
       $control_titles = array_values(array_filter($control_titles, static fn(string $value): bool => $value !== ''));
@@ -1814,6 +1885,7 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
     $transitions = array_values(array_filter((array) ($flow['transitions'] ?? []), static fn(mixed $item): bool => is_array($item)));
     $entrypoint = trim((string) ($flow['default_entrypoint'] ?? ''));
     $owner = (string) ($flow['owner'] ?? 'unassigned');
+    $node_owners = $this->flowNodeOwnerMap($flow);
     $tool_options = $this->flows->toolOptions();
     $child_flows = $this->childFlowsFor($flow);
     $decision_nodes = $this->flowDecisionNodes($transitions);
@@ -1841,7 +1913,7 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
           foreach ($child_nodes as $child_index => $child_node) {
             $child_node_id = $this->mermaidId('node_' . $index . '_' . $child_index . '_' . $child_node);
             $node_paths[$child_node] = ['first' => $child_node_id, 'last' => $child_node_id];
-            $lines[] = '    ' . $child_node_id . '["' . $this->mermaidLabel($child_node) . '"]';
+            $lines[] = '    ' . $child_node_id . '["' . $this->mermaidNodeLabel($child_node, $node_owners[$child_node] ?? '') . '"]';
             if ($prior_child_id !== NULL) {
               $lines[] = '    ' . $prior_child_id . ' --> ' . $child_node_id;
             }
@@ -1859,10 +1931,10 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
       $node_id = $this->mermaidId('node_' . $index . '_' . $node);
       $node_paths[$node] = ['first' => $node_id, 'last' => $node_id];
       if (in_array($node, $decision_nodes, TRUE)) {
-        $lines[] = '  ' . $node_id . '{"' . $this->mermaidLabel($node) . '"}';
+        $lines[] = '  ' . $node_id . '{"' . $this->mermaidNodeLabel($node, $node_owners[$node] ?? '') . '"}';
       }
       else {
-        $lines[] = '  ' . $node_id . '["' . $this->mermaidLabel($node) . '"]';
+        $lines[] = '  ' . $node_id . '["' . $this->mermaidNodeLabel($node, $node_owners[$node] ?? '') . '"]';
       }
     }
 
@@ -1990,6 +2062,227 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
   private function mermaidLabel(string $value): string {
     $value = preg_replace('/\s+/', ' ', trim($value)) ?? '';
     return str_replace(['"', '<', '>'], ["'", '', ''], $value);
+  }
+
+  private function mermaidNodeLabel(string $node, string $owner_label): string {
+    $label = $this->mermaidLabel($node);
+    $owner_label = trim($owner_label);
+    if ($owner_label === '') {
+      return $label;
+    }
+    return $label . '<br/>[' . $this->mermaidLabel($owner_label) . ']';
+  }
+
+  private function flowNodeOwnerMap(array $flow): array {
+    $owners = [];
+    foreach ((array) ($flow['node_breakdown'] ?? []) as $item) {
+      if (!is_array($item)) {
+        continue;
+      }
+      $node = trim((string) ($item['parent_node'] ?? ''));
+      $owner_seat = trim((string) ($item['owner_seat'] ?? ''));
+      $owner_binding = trim((string) ($item['owner_binding'] ?? ''));
+      if ($node !== '' && ($owner_seat !== '' || $owner_binding !== '')) {
+        $owners[$node] = $owner_seat !== '' ? $owner_seat : $this->ownerBindingLabel($owner_binding);
+      }
+    }
+    return $owners;
+  }
+
+  private function flowPhaseSummaryRows(array $flow): array {
+    $nodes = array_values(array_filter(array_map('strval', (array) ($flow['nodes'] ?? [])), static fn(string $value): bool => $value !== ''));
+    if ($nodes === []) {
+      return [['-', '-', 'No executable nodes are configured for this flow yet.']];
+    }
+
+    $parallel_structure = $this->flowPrimaryParallelStructure($flow);
+    if ($parallel_structure === []) {
+      return [['Linear path', implode(' -> ', $nodes), 'No primary forward split/merge pair was detected, so this flow currently reads as one main execution lane.']];
+    }
+
+    $indices = is_array($parallel_structure['indices'] ?? NULL) ? $parallel_structure['indices'] : [];
+    $split = (string) ($parallel_structure['split'] ?? '');
+    $merge = (string) ($parallel_structure['merge'] ?? '');
+    $split_index = $indices[$split] ?? NULL;
+    $merge_index = $indices[$merge] ?? NULL;
+    if (!is_int($split_index) || !is_int($merge_index) || $merge_index < $split_index) {
+      return [['Linear path', implode(' -> ', $nodes), 'A forward split/merge pattern was detected, but its phase boundaries could not be resolved cleanly.']];
+    }
+
+    $upstream_nodes = array_slice($nodes, 0, $split_index + 1);
+    $post_merge_nodes = array_slice($nodes, $merge_index);
+    $lane_rows = [];
+    foreach ((array) ($parallel_structure['lanes'] ?? []) as $lane) {
+      $path = array_values(array_filter(array_map('strval', (array) ($lane['path'] ?? [])), static fn(string $value): bool => $value !== ''));
+      if ($path !== [] && end($path) === $merge) {
+        array_pop($path);
+      }
+      if ($path !== []) {
+        $lane_rows[] = implode(' -> ', $path);
+      }
+    }
+
+    return [
+      ['Upstream path', $upstream_nodes !== [] ? implode(' -> ', $upstream_nodes) : '-', 'Everything before the first major forward fan-out at ' . $split . '.'],
+      ['Parallel delivery window', $lane_rows !== [] ? implode(' | ', $lane_rows) : '-', 'Independent forward branches that leave ' . $split . ' and must all converge at ' . $merge . '.'],
+      ['Post-merge validation', $post_merge_nodes !== [] ? implode(' -> ', $post_merge_nodes) : '-', 'Single-lane execution after ' . $merge . ' collects the required branch approvals.'],
+    ];
+  }
+
+  private function flowExecutionLaneRows(array $flow): array {
+    $parallel_structure = $this->flowPrimaryParallelStructure($flow);
+    if ($parallel_structure === []) {
+      return [['Primary lane', isset($flow['nodes']) && $flow['nodes'] !== [] ? implode(' -> ', (array) $flow['nodes']) : '-', isset($flow['owner']) ? (string) $flow['owner'] : '-', 'No primary forward branch/join pair is modeled for this flow.']];
+    }
+
+    $rows = [];
+    $merge = (string) ($parallel_structure['merge'] ?? '');
+    foreach ((array) ($parallel_structure['lanes'] ?? []) as $lane) {
+      $entry = (string) ($lane['entry'] ?? '');
+      $path = array_values(array_filter(array_map('strval', (array) ($lane['path'] ?? [])), static fn(string $value): bool => $value !== ''));
+      if ($path !== [] && end($path) === $merge) {
+        array_pop($path);
+      }
+      $rows[] = [
+        $entry !== '' ? $entry : 'Branch',
+        $path !== [] ? implode(' -> ', $path) : '-',
+        $this->flowNodeOwnerSummary($flow, $path),
+        $merge !== '' ? 'Feeds ' . $merge . ' after ' . ($path !== [] ? end($path) : 'this branch') . '.' : 'Returns to the first downstream join.',
+      ];
+    }
+
+    return $rows !== [] ? $rows : [['-', '-', '-', 'No lane details available.']];
+  }
+
+  private function flowNodeOwnerSummary(array $flow, array $nodes): string {
+    $owner_map = $this->flowNodeOwnerMap($flow);
+    $owners = [];
+    foreach ($nodes as $node) {
+      $node = (string) $node;
+      if ($node !== '' && isset($owner_map[$node]) && !in_array($owner_map[$node], $owners, TRUE)) {
+        $owners[] = $owner_map[$node];
+      }
+    }
+    return $owners !== [] ? implode(' -> ', $owners) : '-';
+  }
+
+  private function flowPrimaryParallelStructure(array $flow): array {
+    $nodes = array_values(array_filter(array_map('strval', (array) ($flow['nodes'] ?? [])), static fn(string $value): bool => $value !== ''));
+    if (count($nodes) < 3) {
+      return [];
+    }
+
+    $indices = array_flip($nodes);
+    $forward_edges = [];
+    $forward_incoming = [];
+    foreach ((array) ($flow['transitions'] ?? []) as $transition) {
+      if (!is_array($transition)) {
+        continue;
+      }
+      $from_node = trim((string) ($transition['from_node'] ?? ''));
+      $to_node = trim((string) ($transition['to_node'] ?? ''));
+      if (!isset($indices[$from_node], $indices[$to_node])) {
+        continue;
+      }
+      if ($indices[$to_node] <= $indices[$from_node]) {
+        continue;
+      }
+      $forward_edges[$from_node] ??= [];
+      if (!in_array($to_node, $forward_edges[$from_node], TRUE)) {
+        $forward_edges[$from_node][] = $to_node;
+      }
+      $forward_incoming[$to_node] ??= [];
+      if (!in_array($from_node, $forward_incoming[$to_node], TRUE)) {
+        $forward_incoming[$to_node][] = $from_node;
+      }
+    }
+
+    foreach ($nodes as $split) {
+      $branches = $forward_edges[$split] ?? [];
+      if (count($branches) < 2) {
+        continue;
+      }
+
+      foreach ($nodes as $merge) {
+        if (($indices[$merge] ?? -1) <= ($indices[$split] ?? -1)) {
+          continue;
+        }
+        if (count($forward_incoming[$merge] ?? []) < 2) {
+          continue;
+        }
+
+        $lanes = [];
+        foreach ($branches as $branch) {
+          $path = $this->shortestForwardPath($branch, $merge, $forward_edges);
+          if ($path === []) {
+            $lanes = [];
+            break;
+          }
+          $lanes[] = [
+            'entry' => $branch,
+            'path' => $path,
+          ];
+        }
+
+        if ($lanes !== []) {
+          return [
+            'split' => $split,
+            'merge' => $merge,
+            'lanes' => $lanes,
+            'indices' => $indices,
+          ];
+        }
+      }
+    }
+
+    return [];
+  }
+
+  private function shortestForwardPath(string $start, string $target, array $forward_edges): array {
+    if ($start === '' || $target === '') {
+      return [];
+    }
+    if ($start === $target) {
+      return [$start];
+    }
+
+    $queue = [[$start]];
+    $visited = [$start => TRUE];
+    while ($queue !== []) {
+      $path = array_shift($queue);
+      if (!is_array($path) || $path === []) {
+        continue;
+      }
+
+      $node = (string) end($path);
+      foreach ((array) ($forward_edges[$node] ?? []) as $next) {
+        $next = (string) $next;
+        if ($next === $target) {
+          $path[] = $next;
+          return $path;
+        }
+        if (isset($visited[$next])) {
+          continue;
+        }
+        $visited[$next] = TRUE;
+        $next_path = $path;
+        $next_path[] = $next;
+        $queue[] = $next_path;
+      }
+    }
+
+    return [];
+  }
+
+  private function ownerBindingLabel(string $owner_binding): string {
+    $owner_binding = trim($owner_binding);
+    return match ($owner_binding) {
+      'product_team.ba_agent' => 'selected product team BA',
+      'product_team.pm_agent' => 'selected product team PM',
+      'product_team.dev_agent' => 'selected product team Dev',
+      'product_team.qa_agent' => 'selected product team QA',
+      default => $owner_binding,
+    };
   }
 
   private function flowWorkspaceSubsectionPage(array $flow, string $section, string $subsection): array {

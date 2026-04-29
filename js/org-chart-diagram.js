@@ -366,10 +366,19 @@
         const hierarchy = buildHierarchy(settings.nodes || []);
         const initialCollapsed = Array.isArray(settings.initialCollapsed) ? settings.initialCollapsed : [];
         const collapsed = new Set(initialCollapsed);
+        const drawer = canvas.closest('.drupal-langgraph-org-chart');
         const wrapper = canvas.closest('.drupal-langgraph-org-chart__canvas-wrapper');
         let chart;
 
         function render() {
+          if (drawer && !drawer.open) {
+            if (chart) {
+              chart.destroy();
+              chart = null;
+            }
+            return;
+          }
+
           const layout = visibleLayout(hierarchy, 'board', collapsed);
           const width = Math.max(
             (wrapper ? wrapper.clientWidth : canvas.parentElement.clientWidth) - 24,
@@ -498,6 +507,9 @@
         }
 
         render();
+        if (drawer) {
+          drawer.addEventListener('toggle', render);
+        }
         window.addEventListener('resize', render, { passive: true });
       });
     }

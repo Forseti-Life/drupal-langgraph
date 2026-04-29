@@ -74,6 +74,10 @@ From those roots the module expects:
   - **Run** records execution controls
   - **Observe** reads runtime evidence
   - **Release** captures and promotes versions
+- Flow detail pages now derive **Phase Summary** and **Execution Lanes** tables
+  from the directed transition graph so operators can see where a flow stays
+  linear, where it fans out into parallel branches, and where those branches
+  join back together before validation.
 - Org structure is now visible in the module:
   - **Org Chart** maps seats from `org-chart/agents/agents.yaml`
   - the CEO first layer is clustered in the diagram so product leads, shared capabilities, executive extensions, and paused seats do not render as one flat row
