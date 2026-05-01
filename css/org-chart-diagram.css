@@ -1,110 +1,170 @@
-.drupal-langgraph-org-chart-layout {
+.drupal-langgraph-org-chart-page {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.drupal-langgraph-org-chart-page__insights {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
   align-items: start;
 }
 
-.drupal-langgraph-org-chart-layout__sidebar {
-  position: sticky;
-  top: 1rem;
-  align-self: start;
-}
-
-.drupal-langgraph-org-chart-layout__content {
-  min-width: 0;
+.drupal-langgraph-org-chart-page__seats {
+  display: grid;
+  gap: 0.85rem;
 }
 
 .drupal-langgraph-org-chart {
   margin: 0;
-}
-
-.drupal-langgraph-org-chart--drawer {
-  width: 4.75rem;
   border: 1px solid #d0d7de;
   border-radius: 0.9rem;
   background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
-  overflow: hidden;
-  transition: width 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-}
-
-.drupal-langgraph-org-chart--drawer[open] {
-  width: min(28rem, 36vw);
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
-}
-
-.drupal-langgraph-org-chart__toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  min-height: 4rem;
-  padding: 0.9rem 1rem;
-  cursor: pointer;
-  list-style: none;
-  font-weight: 600;
-  color: #0f172a;
-}
-
-.drupal-langgraph-org-chart__toggle::-webkit-details-marker {
-  display: none;
-}
-
-.drupal-langgraph-org-chart__toggle-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 999px;
-  background: #dbeafe;
-  color: #1d4ed8;
-  font-size: 0.85rem;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-.drupal-langgraph-org-chart__toggle-label,
-.drupal-langgraph-org-chart__toggle-hint {
-  white-space: nowrap;
-}
-
-.drupal-langgraph-org-chart__toggle-hint {
-  margin-left: auto;
-  color: #475569;
-  font-size: 0.85rem;
-  font-weight: 500;
-}
-
-.drupal-langgraph-org-chart--drawer:not([open]) .drupal-langgraph-org-chart__toggle {
-  flex-direction: column;
-  justify-content: center;
-  gap: 0.35rem;
-  padding-inline: 0.5rem;
-  text-align: center;
-}
-
-.drupal-langgraph-org-chart--drawer:not([open]) .drupal-langgraph-org-chart__toggle-label {
-  font-size: 0.78rem;
-  white-space: normal;
-  line-height: 1.1;
-}
-
-.drupal-langgraph-org-chart--drawer:not([open]) .drupal-langgraph-org-chart__toggle-hint {
-  display: none;
-}
-
-.drupal-langgraph-org-chart--drawer[open] .drupal-langgraph-org-chart__toggle-hint::after {
-  content: " <-";
 }
 
 .drupal-langgraph-org-chart__body {
-  padding: 0 1rem 1rem;
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
 }
 
-.drupal-langgraph-org-chart__body > p {
-  margin: 0 0 0.85rem;
+.drupal-langgraph-org-chart__intro h3,
+.drupal-langgraph-org-chart__context-card h4 {
+  margin: 0 0 0.5rem;
+  color: #0f172a;
+}
+
+.drupal-langgraph-org-chart__intro p,
+.drupal-langgraph-org-chart__context-card ul {
+  margin: 0;
+}
+
+.drupal-langgraph-org-chart__intro p {
   color: #334155;
+}
+
+.drupal-langgraph-org-chart__navigator-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(18rem, 24rem);
+  gap: 1rem;
+  align-items: start;
+}
+
+.drupal-langgraph-org-chart__context {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.drupal-langgraph-org-chart__context-card {
+  border: 1px solid #d0d7de;
+  border-radius: 0.75rem;
+  background: #fff;
+  padding: 0.9rem 1rem;
+}
+
+.drupal-langgraph-org-chart__context-card li + li {
+  margin-top: 0.35rem;
+}
+
+.drupal-langgraph-org-chart__tree {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.drupal-langgraph-org-chart__tree-node {
+  margin: 0;
+}
+
+.drupal-langgraph-org-chart__tree-node > summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.drupal-langgraph-org-chart__tree-node > summary::-webkit-details-marker {
+  display: none;
+}
+
+.drupal-langgraph-org-chart__tree-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.5rem;
+  align-items: center;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid #d0d7de;
+  border-radius: 0.7rem;
+  background: #fff;
+}
+
+.drupal-langgraph-org-chart__tree-node[open] > summary .drupal-langgraph-org-chart__tree-row {
+  border-bottom-left-radius: 0.35rem;
+  border-bottom-right-radius: 0.35rem;
+  border-color: #94a3b8;
+}
+
+.drupal-langgraph-org-chart__tree-node--board > summary .drupal-langgraph-org-chart__tree-row {
+  background: #111827;
+  border-color: #111827;
+  color: #fff;
+}
+
+.drupal-langgraph-org-chart__tree-node--group > summary .drupal-langgraph-org-chart__tree-row {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.drupal-langgraph-org-chart__tree-node--paused > summary .drupal-langgraph-org-chart__tree-row,
+.drupal-langgraph-org-chart__tree-node--paused > .drupal-langgraph-org-chart__tree-row {
+  background: #f8fafc;
+  color: #64748b;
+}
+
+.drupal-langgraph-org-chart__tree-link,
+.drupal-langgraph-org-chart__tree-text {
+  font-weight: 600;
+  color: inherit;
+  text-decoration: none;
+}
+
+.drupal-langgraph-org-chart__tree-link:hover,
+.drupal-langgraph-org-chart__tree-link:focus {
+  text-decoration: underline;
+}
+
+.drupal-langgraph-org-chart__tree-subtitle {
+  font-size: 0.84rem;
+  color: #475569;
+}
+
+.drupal-langgraph-org-chart__tree-node--board .drupal-langgraph-org-chart__tree-subtitle {
+  color: #d1d5db;
+}
+
+.drupal-langgraph-org-chart__tree-badge {
+  margin-left: auto;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.drupal-langgraph-org-chart__tree-node--board .drupal-langgraph-org-chart__tree-badge {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.drupal-langgraph-org-chart__tree-children {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0.45rem 0 0 1rem;
+  padding-left: 0.8rem;
+  border-left: 2px solid #dbeafe;
+}
+
+.drupal-langgraph-org-chart__visual-map details {
+  margin: 0;
 }
 
 .drupal-langgraph-org-chart__canvas-wrapper {
@@ -117,6 +177,7 @@
   background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
   overflow: auto;
   max-height: calc(100vh - 12rem);
+  min-width: 0;
 }
 
 .drupal-langgraph-org-chart__canvas {
@@ -127,7 +188,124 @@
 
 .drupal-langgraph-seat-detail {
   scroll-margin-top: 1rem;
+  margin: 0;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.drupal-langgraph-org-chart__section,
+.drupal-langgraph-seat-detail {
+  border: 1px solid #d0d7de;
+  border-radius: 0.8rem;
+  background: #fff;
+  overflow: hidden;
+}
+
+.drupal-langgraph-org-chart__section > summary,
+.drupal-langgraph-seat-detail > summary {
+  padding: 0.9rem 1rem;
+  font-weight: 600;
+}
+
+.drupal-langgraph-org-chart__section[open] > summary,
+.drupal-langgraph-seat-detail[open] > summary {
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.drupal-langgraph-org-chart__section > table,
+.drupal-langgraph-org-chart__section .table-responsive,
+.drupal-langgraph-seat-detail table,
+.drupal-langgraph-seat-animation table {
+  width: 100%;
+}
+
+.drupal-langgraph-org-chart__section table,
+.drupal-langgraph-seat-detail table,
+.drupal-langgraph-seat-animation table {
+  display: block;
+  overflow-x: auto;
+  margin: 0;
+}
+
+.drupal-langgraph-org-chart__section th,
+.drupal-langgraph-org-chart__section td,
+.drupal-langgraph-seat-detail th,
+.drupal-langgraph-seat-detail td,
+.drupal-langgraph-seat-animation th,
+.drupal-langgraph-seat-animation td {
+  padding: 0.65rem 0.75rem;
+  vertical-align: top;
+  white-space: normal;
+}
+
+.drupal-langgraph-org-chart__section tbody tr:nth-child(odd),
+.drupal-langgraph-seat-detail tbody tr:nth-child(odd),
+.drupal-langgraph-seat-animation tbody tr:nth-child(odd) {
+  background: #f8fafc;
+}
+
+.drupal-langgraph-seat-detail__overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem);
+  gap: 1rem;
+  align-items: start;
+  padding: 1rem;
+}
+
+.drupal-langgraph-seat-animation {
+  border: 1px solid #d0d7de;
+  border-radius: 0.75rem;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  padding: 1rem;
+}
+
+.drupal-langgraph-seat-animation h4 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+.drupal-langgraph-seat-animation__preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 13rem;
+  margin: 0 0 0.85rem;
+  border: 1px dashed #94a3b8;
+  border-radius: 0.75rem;
+  background: #f8fafc;
+  overflow: hidden;
+}
+
+.drupal-langgraph-seat-animation__image {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.drupal-langgraph-seat-animation__placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  color: #334155;
+  text-align: center;
+  padding: 1rem;
+}
+
+.drupal-langgraph-seat-animation__placeholder-seat {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.drupal-langgraph-seat-animation__placeholder-status {
+  font-size: 0.92rem;
+}
+
+.drupal-langgraph-seat-animation__placeholder-note {
+  font-size: 0.82rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .drupal-langgraph-seat-detail--active {
@@ -136,29 +314,59 @@
 }
 
 @media (max-width: 1023px) {
-  .drupal-langgraph-org-chart-layout {
+  .drupal-langgraph-org-chart-page__insights,
+  .drupal-langgraph-org-chart__navigator-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .drupal-langgraph-org-chart-layout__sidebar {
-    position: static;
+  .drupal-langgraph-seat-detail__overview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 767px) {
+  .drupal-langgraph-org-chart__section > summary,
+  .drupal-langgraph-seat-detail > summary {
+    padding: 0.8rem 0.9rem;
   }
 
-  .drupal-langgraph-org-chart--drawer,
-  .drupal-langgraph-org-chart--drawer[open] {
-    width: 100%;
+  .drupal-langgraph-org-chart__section th,
+  .drupal-langgraph-org-chart__section td,
+  .drupal-langgraph-seat-detail th,
+  .drupal-langgraph-seat-detail td,
+  .drupal-langgraph-seat-animation th,
+  .drupal-langgraph-seat-animation td {
+    padding: 0.55rem 0.65rem;
+    font-size: 0.92rem;
   }
 
-  .drupal-langgraph-org-chart--drawer:not([open]) .drupal-langgraph-org-chart__toggle {
-    flex-direction: row;
-    justify-content: flex-start;
-    padding-inline: 1rem;
-    text-align: left;
+  .drupal-langgraph-seat-detail__overview {
+    padding: 0.8rem;
   }
 
-  .drupal-langgraph-org-chart--drawer:not([open]) .drupal-langgraph-org-chart__toggle-label {
-    font-size: 1rem;
-    white-space: nowrap;
-    line-height: 1.2;
+  .drupal-langgraph-seat-animation {
+    padding: 0.85rem;
+  }
+
+  .drupal-langgraph-seat-animation__preview {
+    min-height: 9rem;
+  }
+
+  .drupal-langgraph-org-chart__canvas-wrapper {
+    padding: 0.75rem;
+    max-height: none;
+  }
+
+  .drupal-langgraph-org-chart__tree-row {
+    padding: 0.65rem 0.7rem;
+  }
+
+  .drupal-langgraph-org-chart__tree-badge {
+    margin-left: 0;
+  }
+
+  .drupal-langgraph-org-chart__tree-children {
+    margin-left: 0.5rem;
+    padding-left: 0.6rem;
   }
 }

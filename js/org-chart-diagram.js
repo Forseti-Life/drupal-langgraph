@@ -366,12 +366,24 @@
         const hierarchy = buildHierarchy(settings.nodes || []);
         const initialCollapsed = Array.isArray(settings.initialCollapsed) ? settings.initialCollapsed : [];
         const collapsed = new Set(initialCollapsed);
-        const drawer = canvas.closest('.drupal-langgraph-org-chart');
+        const drawer = canvas.closest('.drupal-langgraph-org-chart__visual-map details');
         const wrapper = canvas.closest('.drupal-langgraph-org-chart__canvas-wrapper');
         let chart;
+        let renderQueued = false;
+
+        function queueRender() {
+          if (renderQueued) {
+            return;
+          }
+          renderQueued = true;
+          window.requestAnimationFrame(() => {
+            renderQueued = false;
+            render();
+          });
+        }
 
         function render() {
-          if (drawer && !drawer.open) {
+          if (drawer instanceof HTMLDetailsElement && !drawer.open) {
             if (chart) {
               chart.destroy();
               chart = null;
@@ -495,7 +507,7 @@
                   else {
                     collapsed.add(raw.id);
                   }
-                  render();
+                  queueRender();
                   return;
                 }
 
@@ -508,9 +520,19 @@
 
         render();
         if (drawer) {
-          drawer.addEventListener('toggle', render);
+          drawer.addEventListener('toggle', queueRender);
+          drawer.addEventListener('transitionend', queueRender);
         }
-        window.addEventListener('resize', render, { passive: true });
+        if (typeof ResizeObserver !== 'undefined') {
+          const resizeObserver = new ResizeObserver(() => queueRender());
+          if (drawer) {
+            resizeObserver.observe(drawer);
+          }
+          if (wrapper) {
+            resizeObserver.observe(wrapper);
+          }
+        }
+        window.addEventListener('resize', queueRender, { passive: true });
       });
     }
   };

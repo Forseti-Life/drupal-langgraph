@@ -125,81 +125,131 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
   public function orgChart(): array {
     $flows = $this->flows->allFlows();
     $build = $this->buildPage('Org Chart', 'Read-only relationship map for seats, ownership, instruction layers, and flow stewardship.', [], FALSE, 'org-chart');
-    $content = [
+    $summary = $this->tableDetails('Org Summary', ['Signal', 'Value'], $this->orgChart->summary($flows));
+    $summary['#attributes']['class'][] = 'drupal-langgraph-org-chart__section';
+
+    $instruction_model = $this->tableDetails('Instruction Layer Model', ['Layer', 'Source', 'Purpose'], $this->orgChart->instructionModelRows());
+    $instruction_model['#attributes']['class'][] = 'drupal-langgraph-org-chart__section';
+    $instruction_model['#open'] = FALSE;
+
+    $flow_ownership = $this->tableDetails('Flow Ownership', ['Flow', 'Flow ID', 'Owning seat', 'Role', 'Supervisor', 'Status'], $this->flowOwnershipRows($flows));
+    $flow_ownership['#attributes']['class'][] = 'drupal-langgraph-org-chart__section';
+    $flow_ownership['#open'] = FALSE;
+
+    $seat_registry = $this->tableDetails('Seat Registry', ['Seat', 'Role', 'Supervisor', 'Scope', 'Ownership context', 'Instruction coverage', 'Status'], $this->orgSeatRows());
+    $seat_registry['#attributes']['class'][] = 'drupal-langgraph-org-chart__section';
+    $seat_registry['#open'] = FALSE;
+
+    $seats = [
       '#type' => 'container',
-      '#attributes' => ['class' => ['drupal-langgraph-org-chart-layout__content']],
-      'summary' => $this->tableDetails('Org Summary', ['Signal', 'Value'], $this->orgChart->summary($flows)),
-      'instruction_model' => $this->tableDetails('Instruction Layer Model', ['Layer', 'Source', 'Purpose'], $this->orgChart->instructionModelRows()),
-      'flow_ownership' => $this->tableDetails('Flow Ownership', ['Flow', 'Flow ID', 'Owning seat', 'Role', 'Supervisor', 'Status'], $this->flowOwnershipRows($flows)),
-      'seat_registry' => $this->tableDetails('Seat Registry', ['Seat', 'Role', 'Supervisor', 'Scope', 'Ownership context', 'Instruction coverage', 'Status'], $this->orgSeatRows()),
+      '#attributes' => ['class' => ['drupal-langgraph-org-chart-page__seats']],
     ];
     foreach ($this->orgChart->seats() as $seat) {
-      $content['seat_' . $seat['id']] = $this->seatDetailsBuild($seat);
+      $seats['seat_' . $seat['id']] = $this->seatDetailsBuild($seat);
     }
 
-    $build['layout'] = [
+    $build['org_chart_page'] = [
       '#type' => 'container',
-      '#attributes' => ['class' => ['drupal-langgraph-org-chart-layout']],
-      'sidebar' => [
+      '#attributes' => ['class' => ['drupal-langgraph-org-chart-page']],
+      'navigator' => $this->orgChartDiagramSection(),
+      'insights' => [
         '#type' => 'container',
-        '#attributes' => ['class' => ['drupal-langgraph-org-chart-layout__sidebar']],
-        'diagram' => $this->orgChartDiagramSection(),
+        '#attributes' => ['class' => ['drupal-langgraph-org-chart-page__insights']],
+        'summary' => $summary,
+        'instruction_model' => $instruction_model,
+        'flow_ownership' => $flow_ownership,
+        'seat_registry' => $seat_registry,
       ],
-      'content' => $content,
+      'seats' => $seats,
     ];
 
     return $build;
   }
 
   private function orgChartDiagramSection(): array {
+    $settings = $this->orgChartDiagramSettings();
+
     return [
-      '#type' => 'html_tag',
-      '#tag' => 'details',
+      '#type' => 'container',
       '#attributes' => [
-        'class' => ['drupal-langgraph-org-chart', 'drupal-langgraph-org-chart--drawer'],
-      ],
-      'summary' => [
-        '#type' => 'html_tag',
-        '#tag' => 'summary',
-        '#attributes' => ['class' => ['drupal-langgraph-org-chart__toggle']],
-        'icon' => [
-          '#type' => 'html_tag',
-          '#tag' => 'span',
-          '#attributes' => [
-            'class' => ['drupal-langgraph-org-chart__toggle-icon'],
-            'aria-hidden' => 'true',
-          ],
-          '#value' => 'OC',
-        ],
-        'label' => [
-          '#type' => 'html_tag',
-          '#tag' => 'span',
-          '#attributes' => ['class' => ['drupal-langgraph-org-chart__toggle-label']],
-          '#value' => (string) $this->t('Org Chart'),
-        ],
-        'hint' => [
-          '#type' => 'html_tag',
-          '#tag' => 'span',
-          '#attributes' => ['class' => ['drupal-langgraph-org-chart__toggle-hint']],
-          '#value' => (string) $this->t('Fold out'),
-        ],
+        'class' => ['drupal-langgraph-org-chart'],
       ],
       'body' => [
         '#type' => 'container',
         '#attributes' => ['class' => ['drupal-langgraph-org-chart__body']],
-        'help' => [
-          '#markup' => '<p>' . $this->t('Hierarchy overview of the org execution model. Board is the synthetic root. The CEO layer is clustered into product leads, shared capabilities, executive extensions, and paused seats so the chart stays readable without changing the underlying reporting lines. Click a seat node to open its detail panel to the right. For seats with subordinates, use the Expand/Collapse chip inside the node to toggle that branch.') . '</p>',
-        ],
-        'canvas_wrapper' => [
+        'intro' => [
           '#type' => 'container',
-          '#attributes' => ['class' => ['drupal-langgraph-org-chart__canvas-wrapper']],
-          'canvas' => [
-            '#type' => 'html_tag',
-            '#tag' => 'canvas',
-            '#attributes' => [
-              'class' => ['drupal-langgraph-org-chart__canvas'],
-              'aria-label' => $this->t('Org chart hierarchy diagram'),
-              'role' => 'img',
+          '#attributes' => ['class' => ['drupal-langgraph-org-chart__intro']],
+          'title' => [
+            '#markup' => '<h3>' . $this->t('Hierarchy Navigator') . '</h3>',
+          ],
+          'copy' => [
+            '#markup' => '<p>' . $this->t('Use the tree to follow reporting lines from the Board down through CEO clusters, team leads, and individual seats. Each seat name jumps directly to its detail panel below, so the navigator acts as the index for the rest of the page.') . '</p>',
+          ],
+        ],
+        'navigator' => [
+          '#type' => 'container',
+          '#attributes' => ['class' => ['drupal-langgraph-org-chart__navigator-grid']],
+          'tree' => $this->orgChartTreeSection($settings),
+          'context' => [
+            '#type' => 'container',
+            '#attributes' => ['class' => ['drupal-langgraph-org-chart__context']],
+            'guide' => [
+              '#type' => 'container',
+              '#attributes' => ['class' => ['drupal-langgraph-org-chart__context-card']],
+              'title' => [
+                '#markup' => '<h4>' . $this->t('How to read it') . '</h4>',
+              ],
+              'items' => [
+                '#theme' => 'item_list',
+                '#items' => [
+                  $this->t('Board is the synthetic root at the top of the hierarchy.'),
+                  $this->t('CEO clusters group product teams, shared capabilities, executive extensions, and paused seats.'),
+                  $this->t('Open any branch to inspect reporting lines without losing the rest of the page context.'),
+                  $this->t('Select a seat name to jump to its ownership, instruction, and animation details below.'),
+                ],
+              ],
+            ],
+            'legend' => [
+              '#type' => 'container',
+              '#attributes' => ['class' => ['drupal-langgraph-org-chart__context-card']],
+              'title' => [
+                '#markup' => '<h4>' . $this->t('What the labels mean') . '</h4>',
+              ],
+              'items' => [
+                '#theme' => 'item_list',
+                '#items' => [
+                  $this->t('Dark row: board-level root.'),
+                  $this->t('Blue row: grouping node rather than an individual seat.'),
+                  $this->t('Gray row: paused seat or inactive branch.'),
+                  $this->t('Child count badge: number of direct reports under that branch.'),
+                ],
+              ],
+            ],
+          ],
+        ],
+        'visual_map' => [
+          '#type' => 'container',
+          '#attributes' => ['class' => ['drupal-langgraph-org-chart__visual-map']],
+          'map_details' => [
+            '#type' => 'details',
+            '#title' => $this->t('Visual map (beta)'),
+            '#open' => FALSE,
+            'note' => [
+              '#markup' => '<p>' . $this->t('This canvas view is still available as a secondary reference, but the collapsible tree is now the primary navigation surface.') . '</p>',
+            ],
+            'canvas_wrapper' => [
+              '#type' => 'container',
+              '#attributes' => ['class' => ['drupal-langgraph-org-chart__canvas-wrapper']],
+              'canvas' => [
+                '#type' => 'html_tag',
+                '#tag' => 'canvas',
+                '#attributes' => [
+                  'class' => ['drupal-langgraph-org-chart__canvas'],
+                  'aria-label' => $this->t('Org chart hierarchy diagram'),
+                  'role' => 'img',
+                ],
+              ],
             ],
           ],
         ],
@@ -208,11 +258,121 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
         'library' => ['drupal_langgraph/org_chart_diagram'],
         'drupalSettings' => [
           'drupalLanggraph' => [
-            'orgChartDiagram' => $this->orgChartDiagramSettings(),
+            'orgChartDiagram' => $settings,
           ],
         ],
       ],
     ];
+  }
+
+  private function orgChartTreeSection(array $settings): array {
+    $hierarchy = $this->orgChartHierarchyNodes((array) ($settings['nodes'] ?? []));
+    $collapsed = array_fill_keys(array_values(array_filter(array_map('strval', (array) ($settings['initialCollapsed'] ?? [])))), TRUE);
+
+    return [
+      '#type' => 'container',
+      '#attributes' => ['class' => ['drupal-langgraph-org-chart__tree']],
+      'root' => $this->orgChartTreeNodeBuild('board', $hierarchy, $collapsed),
+    ];
+  }
+
+  private function orgChartHierarchyNodes(array $nodes): array {
+    $by_id = [];
+    foreach ($nodes as $node) {
+      if (!is_array($node) || empty($node['id'])) {
+        continue;
+      }
+      $node['children'] = [];
+      $by_id[(string) $node['id']] = $node;
+    }
+
+    foreach ($by_id as $id => $node) {
+      $parent = (string) ($node['parent'] ?? '');
+      if ($parent !== '' && isset($by_id[$parent])) {
+        $by_id[$parent]['children'][] = $id;
+      }
+    }
+
+    foreach ($by_id as &$node) {
+      usort($node['children'], function (string $left_id, string $right_id) use ($by_id): int {
+        $left = $by_id[$left_id] ?? [];
+        $right = $by_id[$right_id] ?? [];
+        $left_weight = (int) ($left['roleWeight'] ?? 0);
+        $right_weight = (int) ($right['roleWeight'] ?? 0);
+        if ($left_weight !== $right_weight) {
+          return $left_weight <=> $right_weight;
+        }
+        return strcasecmp((string) ($left['label'] ?? ''), (string) ($right['label'] ?? ''));
+      });
+    }
+    unset($node);
+
+    return $by_id;
+  }
+
+  private function orgChartTreeNodeBuild(string $node_id, array $hierarchy, array $collapsed): array {
+    $node = $hierarchy[$node_id] ?? NULL;
+    if ($node === NULL) {
+      return ['#markup' => ''];
+    }
+
+    $has_children = !empty($node['children']);
+    $classes = ['drupal-langgraph-org-chart__tree-node'];
+    if (!empty($node['isGroup'])) {
+      $classes[] = 'drupal-langgraph-org-chart__tree-node--group';
+    }
+    if ($node_id === 'board') {
+      $classes[] = 'drupal-langgraph-org-chart__tree-node--board';
+    }
+    if (!empty($node['paused'])) {
+      $classes[] = 'drupal-langgraph-org-chart__tree-node--paused';
+    }
+
+    $label = Html::escape((string) ($node['label'] ?? $node_id));
+    $subtitle = trim((string) ($node['subtitle'] ?? ''));
+    $detail_id = trim((string) ($node['detailId'] ?? ''));
+    $title_markup = $detail_id !== ''
+      ? '<a href="#' . Html::escape($detail_id) . '" class="drupal-langgraph-org-chart__tree-link">' . $label . '</a>'
+      : '<span class="drupal-langgraph-org-chart__tree-text">' . $label . '</span>';
+    $subtitle_markup = $subtitle !== ''
+      ? '<span class="drupal-langgraph-org-chart__tree-subtitle">' . Html::escape($subtitle) . '</span>'
+      : '';
+    $badge_markup = $has_children
+      ? '<span class="drupal-langgraph-org-chart__tree-badge">' . $this->formatPlural(count((array) $node['children']), '1 child', '@count children') . '</span>'
+      : '';
+
+    if (!$has_children) {
+      return [
+        '#type' => 'container',
+        '#attributes' => ['class' => $classes],
+        'body' => [
+          '#markup' => Markup::create('<div class="drupal-langgraph-org-chart__tree-row">' . $title_markup . $subtitle_markup . $badge_markup . '</div>'),
+        ],
+      ];
+    }
+
+    $build = [
+      '#type' => 'details',
+      '#open' => !isset($collapsed[$node_id]),
+      '#attributes' => ['class' => $classes],
+      'summary' => [
+        '#type' => 'html_tag',
+        '#tag' => 'summary',
+        '#attributes' => ['class' => ['drupal-langgraph-org-chart__tree-summary']],
+        '#value' => '',
+      ],
+      'children' => [
+        '#type' => 'container',
+        '#attributes' => ['class' => ['drupal-langgraph-org-chart__tree-children']],
+      ],
+    ];
+    $build['summary']['#value'] = Markup::create('<span class="drupal-langgraph-org-chart__tree-row">' . $title_markup . $subtitle_markup . $badge_markup . '</span>');
+
+    foreach ((array) $node['children'] as $child_id) {
+      $build['children'][$child_id] = $this->orgChartTreeNodeBuild((string) $child_id, $hierarchy, $collapsed);
+    }
+
+    return $build;
   }
 
   private function orgChartDiagramSettings(): array {
@@ -1181,18 +1341,23 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
         'id' => $this->seatDetailDomId($seat),
         'class' => ['drupal-langgraph-seat-detail'],
       ],
-      'summary' => [
-        '#type' => 'table',
-        '#header' => [$this->t('Field'), $this->t('Value')],
-        '#rows' => [
-          [$this->t('Seat ID'), $seat['id']],
-          [$this->t('Name'), $seat['name']],
-          [$this->t('Role'), $seat['role_label']],
-          [$this->t('Supervisor'), $this->ownerSeatCell((string) ($seat['supervisor'] ?? ''))],
-          [$this->t('Website scope'), $seat['scope_label']],
-          [$this->t('Status'), $this->seatStatusLabel($seat)],
-          [$this->t('Subordinates'), $seat['subordinates'] !== [] ? implode(', ', $seat['subordinates']) : '-'],
+      'overview' => [
+        '#type' => 'container',
+        '#attributes' => ['class' => ['drupal-langgraph-seat-detail__overview']],
+        'summary' => [
+          '#type' => 'table',
+          '#header' => [$this->t('Field'), $this->t('Value')],
+          '#rows' => [
+            [$this->t('Seat ID'), $seat['id']],
+            [$this->t('Name'), $seat['name']],
+            [$this->t('Role'), $seat['role_label']],
+            [$this->t('Supervisor'), $this->ownerSeatCell((string) ($seat['supervisor'] ?? ''))],
+            [$this->t('Website scope'), $seat['scope_label']],
+            [$this->t('Status'), $this->seatStatusLabel($seat)],
+            [$this->t('Subordinates'), $seat['subordinates'] !== [] ? implode(', ', $seat['subordinates']) : '-'],
+          ],
         ],
+        'animation' => $this->seatAnimationBuild($seat),
       ],
       'instruction_layers' => $this->tableDetails('Instruction Layers', ['Layer', 'Applies to', 'Path', 'Status'], $this->seatInstructionRows($seat)),
       'ownership' => $this->tableDetails('Ownership Context', ['Type', 'Label', 'Detail'], $this->seatOwnershipRows($seat)),
@@ -1315,6 +1480,46 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
 
   private function seatDetailDomId(array $seat): string {
     return 'seat-' . Html::getId((string) ($seat['id'] ?? ''));
+  }
+
+  private function seatAnimationBuild(array $seat): array {
+    $seat_id = (string) ($seat['id'] ?? '');
+    $status = $this->seatStatusLabel($seat);
+    $relative_path = '/sites/default/files/seat-status-gifs/' . rawurlencode($seat_id) . '.gif';
+    $absolute_path = DRUPAL_ROOT . '/sites/default/files/seat-status-gifs/' . $seat_id . '.gif';
+    $gif_exists = $seat_id !== '' && file_exists($absolute_path);
+
+    $preview = $gif_exists
+      ? '<img src="' . Html::escape($relative_path) . '" alt="' . Html::escape($seat_id . ' status animation') . '" class="drupal-langgraph-seat-animation__image" />'
+      : '<div class="drupal-langgraph-seat-animation__placeholder">' .
+        '<span class="drupal-langgraph-seat-animation__placeholder-seat">' . Html::escape($seat_id) . '</span>' .
+        '<span class="drupal-langgraph-seat-animation__placeholder-status">' . Html::escape($status) . '</span>' .
+        '<span class="drupal-langgraph-seat-animation__placeholder-note">' . Html::escape('GIF pending') . '</span>' .
+        '</div>';
+
+    return [
+      '#type' => 'container',
+      '#attributes' => [
+        'class' => ['drupal-langgraph-seat-animation'],
+        'data-seat-id' => $seat_id,
+        'data-seat-status' => Html::getClass(strtolower($status)),
+      ],
+      'title' => [
+        '#markup' => '<h4>' . $this->t('Animation') . '</h4>',
+      ],
+      'preview' => [
+        '#markup' => Markup::create('<div class="drupal-langgraph-seat-animation__preview">' . $preview . '</div>'),
+      ],
+      'meta' => [
+        '#type' => 'table',
+        '#header' => [$this->t('Field'), $this->t('Value')],
+        '#rows' => [
+          [$this->t('Seat status'), $status],
+          [$this->t('GIF asset'), $relative_path],
+          [$this->t('Availability'), $gif_exists ? $this->t('Present') : $this->t('Awaiting first render')],
+        ],
+      ],
+    ];
   }
 
   private function ownerSeatCell(string $owner_id): string {
