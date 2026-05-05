@@ -13,6 +13,10 @@ restored public roadmap and consolidated LangGraph admin surface.
 It does **not** move live runtime data into Drupal. Instead, it reads
 authoritative HQ files from the filesystem.
 
+## Repository status
+
+This repository is the standalone source of truth for the `drupal_langgraph` module. It integrates with HQ filesystem contracts, but it is versioned and released independently from `copilot-hq`.
+
 ## Current module contents
 
 - **Public roadmap UI**
