@@ -17,6 +17,57 @@ authoritative HQ files from the filesystem.
 
 This repository is the standalone source of truth for the `drupal_langgraph` module. It integrates with HQ filesystem contracts, but it is versioned and released independently from `copilot-hq`.
 
+## Dependency model
+
+`drupal_langgraph` is **not** a fully self-sufficient product repository.
+
+- The **module code** lives in this repository: `/home/ubuntu/forseti.life/drupal-langgraph`
+- The module's **primary external dependency repository** is:
+  `/home/ubuntu/forseti.life/copilot-hq`
+- Some shared HQ documentation reached through compatibility paths may be
+  sourced from:
+  `/home/ubuntu/forseti.life/forseti-docs`
+- Some runtime control artifacts are written to Drupal private storage under the
+  live site and are therefore **not stored in git**
+
+In practice, this repo provides the Drupal UI layer, while the surrounding HQ
+repositories and runtime state provide the operational data that the UI renders.
+
+## Repository and runtime dependencies
+
+The module depends on the following external repositories and runtime surfaces:
+
+| Dependency surface | Source of truth | Notes |
+|---|---|---|
+| Module code (`routes`, `controllers`, `forms`, `services`, templates, JS/CSS) | `drupal-langgraph` | Self-contained Drupal module code |
+| HQ roadmap, org chart, ownership, runtime graph exports, orchestration artifacts | `copilot-hq` | Primary external repository dependency |
+| Shared HQ docs behind compatibility paths | `forseti-docs` | Accessed through HQ compatibility paths when applicable |
+| Drupal private artifact storage (`private://drupal_langgraph/...`) | Live Drupal files | Runtime request/replay/promotion artifacts; not versioned in git |
+| Drupal config/database | Live Drupal site | Stores enabled module state and custom flow config |
+
+## What comes from `copilot-hq`
+
+The module reads or shells out to these `copilot-hq` surfaces:
+
+- `dashboards/PROJECTS.md`
+- `dashboards/FEATURE_PROGRESS.md`
+- `dashboards/LANGGRAPH_CONTROL_PLANE_RUNBOOK.md`
+- `features/*/feature.md`
+- `org-chart/agents/agents.yaml`
+- `org-chart/ownership/module-ownership.yaml`
+- `org-chart/ownership/repository-ownership.yaml`
+- `orchestrator/runtime_graph/export_flow_catalog.py`
+- `inbox/responses/langgraph-ticks.jsonl`
+- `inbox/responses/langgraph-llm-usage.jsonl`
+- `inbox/responses/langgraph-parity-latest.json`
+- `inbox/responses/orchestrator-latest.log`
+- `sessions/*/...`
+- `tmp/release-cycle-active/*`
+- `tmp/executor-failures/*`
+
+These dependencies are operationally required for the roadmap, observe, org
+chart, and runtime-control surfaces to show meaningful data.
+
 ## Current module contents
 
 - **Public roadmap UI**
@@ -28,7 +79,8 @@ This repository is the standalone source of truth for the `drupal_langgraph` mod
   - build / test / run / observe / release / admin subsections
   - org chart view for seat hierarchy, ownership mappings, and instruction layers
   - Chart.js hierarchy diagram with Board as the root, a clustered CEO layer for readability, node drill-in to seat details, and in-node expand/collapse controls for manager branches
-  - Observe subsections: traces, metrics, drift, alerts, feature-progress
+- Observe subsections: traces, metrics, drift, alerts, integrations, feature-progress
+- the integrations view reads `langgraph-llm-usage.jsonl` to show backend coverage plus token-utilization rollups by backend/model
   - compatibility-facing aliases under `/admin/reports/drupal-langgraph/langgraph/*`
   - release evidence / release troubleshooting parity sourced from HQ session artifacts
 - **HQ-backed services**
@@ -45,6 +97,16 @@ The module resolves paths from environment variables when present:
 
 By default the module now treats `/home/ubuntu/forseti.life` as the canonical HQ/runtime root and only falls back to older exported/copied HQ roots when the canonical path is unavailable.
 
+Important clarification:
+
+- In the current live layout, the resolved canonical root contains the
+  `copilot-hq` repository as a sibling workspace dependency, and many of the
+  files below are actually satisfied by `copilot-hq`
+- `COPILOT_HQ_ROOT` controls which runtime artifact root is read for
+  `inbox/responses/*` and the runtime graph export
+- `FORSETI_ROOT` controls the wider workspace root used for paths such as
+  `tmp/`, `sessions/`, `features/`, and compatibility-facing HQ content
+
 From those roots the module expects:
 
 - `dashboards/PROJECTS.md`
@@ -52,11 +114,31 @@ From those roots the module expects:
 - `dashboards/LANGGRAPH_CONTROL_PLANE_RUNBOOK.md`
 - `features/*/feature.md`
 - `inbox/responses/langgraph-ticks.jsonl`
+- `inbox/responses/langgraph-llm-usage.jsonl`
 - `inbox/responses/langgraph-parity-latest.json`
 - `sessions/*/artifacts/release-candidates/*/05-release-notes.md`
 - `sessions/*/artifacts/release-signoffs/*.md`
 - `sessions/*/inbox/*`
 - `tmp/release-cycle-active/*.release_id`
+
+If those files are absent, the module still installs and routes correctly, but
+the affected admin surfaces will render empty, degraded, or request-only views.
+
+## Runtime control dependency
+
+The **Run**, **Test**, and **Release** control surfaces are not autonomous.
+
+- The module can write runtime request, replay request, version, and promotion
+  artifacts
+- Those artifacts are written either to:
+  - Drupal private storage: `private://drupal_langgraph/...`
+  - or the filesystem fallback under `FORSETI_ROOT/tmp/langgraph-control-requests/...`
+- External worker scripts in `copilot-hq/scripts/` are responsible for
+  consuming those artifacts and performing the actual execution
+
+Implication: the module can record operator intent on its own, but actual
+LangGraph execution and control-plane changes depend on the HQ runtime outside
+this repository.
 
 ## Current migration posture
 

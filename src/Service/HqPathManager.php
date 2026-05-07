@@ -69,15 +69,17 @@ final class HqPathManager {
   public function artifactPaths(): array {
     return [
       'ticks' => $this->resolveRuntime('inbox/responses/langgraph-ticks.jsonl'),
+      'llm_usage' => $this->resolveRuntime('inbox/responses/langgraph-llm-usage.jsonl'),
       'parity' => $this->resolveRuntime('inbox/responses/langgraph-parity-latest.json'),
       'orchestrator_log' => $this->resolveRuntime('inbox/responses/orchestrator-latest.log'),
+      'llm_routing' => $this->resolveRuntime('llm/routing.yaml'),
       'release_cycle_dir' => $this->resolveForseti('tmp/release-cycle-active'),
       'release_control_legacy' => $this->resolveForseti('tmp/release-cycle-control.json'),
       'release_control_default' => '/var/tmp/copilot-sessions-hq/release-cycle-control.json',
       'org_control_legacy' => $this->resolveForseti('tmp/org-control.json'),
       'org_control_default' => '/var/tmp/copilot-sessions-hq/org-control.json',
-      'graph_definition' => $this->resolveForseti('orchestrator/langgraph/graph.py'),
-      'graph_catalog_export' => $this->resolveForseti('orchestrator/runtime_graph/export_flow_catalog.py'),
+      'graph_definition' => $this->resolveRuntime('orchestrator/runtime_graph/engine.py'),
+      'graph_catalog_export' => $this->resolveRuntime('orchestrator/runtime_graph/export_flow_catalog.py'),
       'feature_progress' => $this->resolveForseti('dashboards/FEATURE_PROGRESS.md'),
       'langgraph_runbook' => $this->resolveForseti('dashboards/LANGGRAPH_CONTROL_PLANE_RUNBOOK.md'),
       'org_roadmap' => $this->resolveForseti('ROADMAP.md'),
@@ -113,6 +115,7 @@ final class HqPathManager {
     $score = 1;
     $artifacts = [
       $candidate . '/inbox/responses/langgraph-ticks.jsonl' => 100,
+      $candidate . '/inbox/responses/langgraph-llm-usage.jsonl' => 60,
       $candidate . '/inbox/responses/langgraph-parity-latest.json' => 25,
       $candidate . '/inbox/responses/orchestrator-latest.log' => 10,
     ];

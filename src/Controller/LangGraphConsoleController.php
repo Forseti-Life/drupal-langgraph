@@ -817,6 +817,36 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
     ]);
   }
 
+  public function observeIntegrations(): array {
+    $paths = $this->paths->artifactPaths();
+    $gap_messages = $this->observe->integrationGapMessages();
+
+    $build = [
+      '#type' => 'container',
+      '#cache' => ['max-age' => 0],
+      'title' => ['#markup' => '<h2>' . $this->t('Observe: Integrations & Usage') . '</h2>'],
+      'description' => ['#markup' => '<p>' . $this->t('Provider routing, recent backend activity, and token-utilization coverage for LangGraph agent execution.') . '</p>'],
+      'guidance' => $this->tableDetails('How to Use This Page', ['Topic', 'Guidance'], $this->observationalPageGuidanceRows('observe-integrations')),
+      'summary' => $this->tableDetails('Integration Summary', ['Signal', 'Current Value'], $this->observe->integrationOverviewSummary(), $this->toRelativePath($paths['llm_usage'])),
+      'token_summary' => $this->tableDetails('Token Utilization Summary', ['Signal', 'Current Value'], $this->observe->integrationTokenSummaryRows(), $this->toRelativePath($paths['llm_usage'])),
+      'routing' => $this->tableDetails('Routing Contract', ['Scope', 'Selector', 'Backend'], $this->observe->integrationRoutingRows(), $this->toRelativePath($paths['llm_routing'])),
+      'coverage' => $this->tableDetails('Backend Coverage', ['Backend', 'Configured', 'Observed', 'Token visibility', 'Latest status', 'Last seen'], $this->observe->integrationCoverageRows(), $this->toRelativePath($paths['llm_usage'])),
+      'utilization' => $this->tableDetails('Token Utilization by Backend / Model', ['Backend', 'Model', 'Calls', 'Coverage', 'Input tokens', 'Output tokens', 'Total tokens', 'Avg per call', 'Latest status', 'Last seen'], $this->observe->integrationUtilizationRows(), $this->toRelativePath($paths['llm_usage'])),
+      'recent_calls' => $this->tableDetails('Recent Provider Calls', ['Timestamp', 'Backend', 'Agent', 'Model', 'Status', 'Success', 'Tokens in/out', 'Duration', 'Error'], $this->observe->integrationRecentCallRows(), $this->toRelativePath($paths['llm_usage'])),
+      'back' => ['#markup' => '<p>' . Link::fromTextAndUrl($this->t('Back to Observe'), Url::fromRoute('drupal_langgraph.langgraph_console_observe'))->toString() . '</p>'],
+    ];
+
+    if ($gap_messages !== []) {
+      $build['gaps'] = [
+        '#theme' => 'item_list',
+        '#title' => $this->t('Coverage gaps'),
+        '#items' => $gap_messages,
+      ];
+    }
+
+    return $this->withCurrentFlowContext($build);
+  }
+
   public function observeControlRequests(): array {
     return $this->withCurrentFlowContext([
       '#type' => 'container',
@@ -1075,6 +1105,7 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
           'metrics' => ['title' => 'Runtime Metrics', 'description' => 'Cadence, queue depth, workers, and anomaly signals.', 'method' => 'observeMetrics'],
           'drift' => ['title' => 'Drift', 'description' => 'Recent node behavior drift versus the historical baseline.', 'method' => 'observeDrift'],
           'alerts' => ['title' => 'Alerts & Incidents', 'description' => 'Executor failures, blocked items, and timeout-like log signals.', 'method' => 'observeAlerts'],
+          'integrations' => ['title' => 'Integrations & Usage', 'description' => 'Backend routing, provider-call activity, and token utilization.', 'method' => 'observeIntegrations'],
           'control-requests' => ['title' => 'Control Requests', 'description' => 'Runtime and promotion requests currently visible to Drupal LangGraph.', 'method' => 'observeControlRequests'],
           'feature-progress' => ['title' => 'Feature Progress', 'description' => 'LangGraph-only view of the HQ feature progress dashboard.', 'method' => 'observeFeatureProgress'],
         ],
@@ -1800,6 +1831,10 @@ final class LangGraphConsoleController extends ControllerBase implements Contain
       'observe-alerts' => [
         ['Purpose', 'Review incident-style signals from runtime artifacts.'],
         ['First troubleshooting step', 'Start with the newest high-severity row, then use Category and Path to decide whether to continue in Metrics, Traces, or Release Troubleshooting.'],
+      ],
+      'observe-integrations' => [
+        ['Purpose', 'Confirm which LLM backends are configured, which have actually been exercised, and how many tokens each backend/model combination is consuming.'],
+        ['First troubleshooting step', 'Start with Token Utilization Summary and Backend Coverage; if a configured backend is not observed or token totals are missing, verify routing and executor telemetry, then inspect Recent Provider Calls for the newest failing record.'],
       ],
       'observe-feature-progress' => [
         ['Purpose', 'Inspect the flow-scoped feature-progress snapshot associated with the current flow context.'],
